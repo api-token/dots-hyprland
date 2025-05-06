@@ -139,9 +139,9 @@
             "apis": {
                 "order": [
                     "gemini",
-                    "gpt",
-                    "waifu",
-                    "booru"
+                    "gpt"
+                    // "waifu",
+                    // "booru"
                 ],
                 "defaultPage": "gemini"
             }
