@@ -15,5 +15,34 @@
 // "workspaces": {"shown": 8 }
 //
 {
-    
+    "sidebar": {
+        "pages": {
+            "apis": {
+                "defaultPage": "gpt"
+            },
+            "defaultPage": "tools"
+        },
+        "calendar": {
+            "expandByDefault": true
+        },
+        "image": {
+            "allowNsfw": false
+        }
+    },
+    "search": {
+        "enableFeatures": {
+            "aiSearch": false
+        }
+    },
+    "ai": {
+        "defaultGPTProvider": "ollama_llama_3_2",
+        "useHistory": false
+    },
+    "time": {
+        "format": "%I:%M%P"
+    },
+    "weather": {
+        "city": "Terre Haute",
+        "preferredUnit": "F"
+    }
 }
