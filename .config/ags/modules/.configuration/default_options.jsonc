@@ -138,12 +138,12 @@
             "defaultPage": "apis",
             "apis": {
                 "order": [
-                    "gemini",
+                    // "gemini",
                     "gpt"
                     // "waifu",
                     // "booru"
                 ],
-                "defaultPage": "gemini"
+                "defaultPage": "gpt"
             }
         },
         "quickToggles": {
