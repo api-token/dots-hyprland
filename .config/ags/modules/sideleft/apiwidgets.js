@@ -70,14 +70,14 @@ export const chatEntry = TextView({
 });
 
 const APILIST = {
-    'gemini': {
-        "name": 'Assistant (Gemini Pro)',
-        "sendCommand": geminiSendMessage,
-        "contentWidget": GeminiView(chatEntry),
-        "commandBar": geminiCommands,
-        "tabIcon": geminiTabIcon,
-        "placeholderText": getString('Message Gemini...'),
-    },
+    // 'gemini': {
+    //     "name": 'Assistant (Gemini Pro)',
+    //     "sendCommand": geminiSendMessage,
+    //     "contentWidget": GeminiView(chatEntry),
+    //     "commandBar": geminiCommands,
+    //     "tabIcon": geminiTabIcon,
+    //     "placeholderText": getString('Message Gemini...'),
+    // },
     'gpt': {
         "name": 'Assistant (GPTs)',
         "sendCommand": chatGPTSendMessage,
