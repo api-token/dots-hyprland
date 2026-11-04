@@ -55,7 +55,7 @@ This checkout is a fork: `origin` = `api-token/dots-hyprland`, upstream = `end-4
 
 - **QML imports:** there are no `qmldir` files. Directories are imported as `qs.<path>` (e.g. `qs.modules.common`, `qs.services`). `GlobalStates` comes from `import qs`. A file becomes a singleton through `pragma Singleton`.
 - **Formatting:** `qmlformat` settings live in `dots/.config/quickshell/ii/.qmlformat.ini` (4-space indent, 110 columns).
-- **User customizations:** they belong in `~/.config/hypr/custom/*.lua` and `config.json`. Don't make users edit the defaults, because the installer overwrites them.
+- **User customizations:** they belong in `~/.config/hypr/custom/*.lua`, `~/.config/foot/custom/foot.ini` and `config.json`. Don't make users edit the defaults, because the installer overwrites them.
 - **Commit messages:** use a short area prefix such as `hypr: …`, `gentoo: …` or `qs: …`.
 
 ## Known gotchas and suspected bugs (found while writing these docs)

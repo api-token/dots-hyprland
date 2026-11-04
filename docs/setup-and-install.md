@@ -116,7 +116,8 @@ Source of truth: `sdata/subcmd-install/3.files-legacy.sh`.
 
 | Target | Default behavior |
 | --- | --- |
-| Miscellaneous immediate `dots/.config/*`, excluding quickshell/fish/hypr/fontconfig (`:7`) | Directories rsync with `--delete`; individual files overwrite; Konsole data copies without deletion |
+| Miscellaneous immediate `dots/.config/*`, excluding quickshell/fish/hypr/fontconfig/foot (`:7`) | Directories rsync with `--delete`; individual files overwrite; Konsole data copies without deletion |
+| Foot (`:18`, inside the miscellaneous block, so `--skip-miscconf` skips it) | rsync `--delete` excluding `custom`; `custom/foot.ini` is copied from the template only when the file is missing, because `foot.ini` includes it and foot rejects a missing include |
 | Entire `$XDG_CONFIG_HOME/quickshell` (`:22`) | rsync `--delete`, including configurations other than `ii`; local edits/additions here are not preserved |
 | Fish (`:30`) | rsync `--delete` excluding `conf.d`; that directory is protected from normal copying/deletion |
 | Fontconfig (`:37`) | rsync `--delete`, source replaced by `dots-extra/fontsets/NAME` when selected |

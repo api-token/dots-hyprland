@@ -13,7 +13,8 @@ Generated runtime state such as `~/.local/state/quickshell/user/generated/colors
 | `dots/.config/matugen/config.toml` | Active template-to-output manifest. |
 | `dots/.config/matugen/templates/` | Material color templates for QML JSON, compositor/lock, GTK, Fuzzel, KDE seed and wallpaper path; also inactive AGS templates. |
 | `dots/.config/kitty/` | Fish terminal, generated palette include, search kitten and mark navigation helper. |
-| `dots/.config/foot/foot.ini` | Fish terminal, fonts/padding, keyboard/search bindings. |
+| `dots/.config/foot/foot.ini` | Fish terminal, fonts/padding, keyboard/search bindings; includes `custom/foot.ini` last. |
+| `dots/.config/foot/custom/foot.ini` | Commented template for user overrides; the installer never overwrites an existing copy. |
 | `dots/.config/fish/` | Interactive startup, Starship, terminal color replay, aliases, universal variables and optional TTY launcher. |
 | `dots/.config/zshrc.d/` | Zsh snippets for color replay, keybindings and optional TTY launcher. |
 | `dots/.config/starship.toml` | Prompt using palette indices modified by generated terminal themes. |
@@ -123,7 +124,7 @@ The manifest hardcodes `~/.config` / `~/.local/state` even though shell scripts 
 
 `kitty/search.py` is vendored from `trygveaa/kitty-kitten-search` (GPLv3 header): a TUI search using Kitty remote control and cached search text. It calls adjacent `scroll_mark.py` for previous/next marks (`search.py:57`, `:260`). Keep both helper files together when changing or installing the search binding.
 
-`foot/foot.ini` selects Fish, `xterm-256color`, JetBrainsMono Nerd Font size 11, fixed DPI behavior, padding 25×25, 10,000 scrollback lines and a non-blinking beam cursor. Ctrl+C/Ctrl+V copy/paste; Ctrl+Shift+C explicitly sends byte `\x03` (interrupt); Ctrl+F opens search, with F3/Shift+F3 navigation. There is no static Material palette in this file.
+`foot/foot.ini` selects Fish, `xterm-256color`, JetBrainsMono Nerd Font size 11, fixed DPI behavior, padding 25×25, 10,000 scrollback lines and a non-blinking beam cursor. Ctrl+C/Ctrl+V copy/paste; Ctrl+Shift+C explicitly sends byte `\x03` (interrupt); Ctrl+F opens search, with F3/Shift+F3 navigation. There is no static Material palette in this file. Its last line is `include=~/.config/foot/custom/foot.ini` (under a re-declared `[main]`), so user settings there override the defaults. Foot treats a missing include as a config error, which is why the installer always seeds that file. A key combo can only be bound once: to reuse one (e.g. `clipboard-copy=Control+Shift+c`), first unbind the default (`[text-bindings]` `\x03=none`). Validate with `foot --check-config`.
 
 ### Fish and Zsh
 

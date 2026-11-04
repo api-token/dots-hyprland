@@ -4,17 +4,23 @@
 # shellcheck shell=bash
 
 #####################################################################################
-# MISC (For dots/.config/* but not quickshell, not fish, not Hyprland, not fontconfig)
+# MISC (For dots/.config/* but not quickshell, not fish, not Hyprland, not fontconfig, not foot)
 case "${SKIP_MISCCONF}" in
   true) true;;
   *)
-    for i in $(find dots/.config/ -mindepth 1 -maxdepth 1 ! -name 'quickshell' ! -name 'fish' ! -name 'hypr' ! -name 'fontconfig' -exec basename {} \;); do
+    for i in $(find dots/.config/ -mindepth 1 -maxdepth 1 ! -name 'quickshell' ! -name 'fish' ! -name 'hypr' ! -name 'fontconfig' ! -name 'foot' -exec basename {} \;); do
 #      i="dots/.config/$i"
       echo "[$0]: Found target: dots/.config/$i"
       if [ -d "dots/.config/$i" ];then install_dir__sync "dots/.config/$i" "$XDG_CONFIG_HOME/$i"
       elif [ -f "dots/.config/$i" ];then install_file "dots/.config/$i" "$XDG_CONFIG_HOME/$i"
       fi
     done
+    # foot: keep user overrides in custom/. foot.ini includes custom/foot.ini and
+    # foot refuses a missing include, so seed that file whenever it is absent.
+    install_dir__sync_exclude dots/.config/foot "$XDG_CONFIG_HOME"/foot "custom"
+    if [ ! -f "$XDG_CONFIG_HOME/foot/custom/foot.ini" ]; then
+      install_file dots/.config/foot/custom/foot.ini "$XDG_CONFIG_HOME"/foot/custom/foot.ini
+    fi
     install_dir "dots/.local/share/konsole" "${XDG_DATA_HOME}"/konsole
     ;;
 esac

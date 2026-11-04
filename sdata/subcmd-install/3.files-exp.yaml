@@ -33,6 +33,13 @@ patterns:
   - from: "dots/.config/foot"
     to: "$XDG_CONFIG_HOME/foot"
     mode: "sync"
+    excludes: ["custom"]
+    condition:
+      type: "terminal"
+      value: "foot"
+  - from: "dots/.config/foot/custom/foot.ini"
+    to: "$XDG_CONFIG_HOME/foot/custom/foot.ini"
+    mode: "skip-if-exists"
     condition:
       type: "terminal"
       value: "foot"
