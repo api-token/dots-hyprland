@@ -15,7 +15,7 @@ install-yay(){
 remove_deprecated_dependencies(){
   printf "${STY_CYAN}[$0]: Removing deprecated dependencies:${STY_RST}\n"
   local list=()
-  list+=(illogical-impulse-{microtex,pymyc-aur,oneui4-icons-git})
+  list+=(illogical-impulse-{microtex,microtex-git,pymyc-aur,oneui4-icons-git})
   list+=(hyprland-qtutils)
   list+=({quickshell,hyprutils,hyprpicker,hyprlang,hypridle,hyprland-qt-support,hyprland-qtutils,hyprlock,xdg-desktop-portal-hyprland,hyprcursor,hyprwayland-scanner,hyprland}-git)
   list+=(matugen-bin)
@@ -92,7 +92,6 @@ install-local-pkgbuild() {
 # Install core dependencies from the meta-packages
 metapkgs=(./sdata/dist-arch/illogical-impulse-{audio,backlight,basic,fonts-themes,kde,portal,python,screencapture,toolkit,widgets})
 metapkgs+=(./sdata/dist-arch/illogical-impulse-hyprland)
-metapkgs+=(./sdata/dist-arch/illogical-impulse-microtex-git)
 metapkgs+=(./sdata/dist-arch/illogical-impulse-quickshell-git)
 metapkgs+=(./sdata/dist-arch/illogical-impulse-bibata-modern-classic-bin)
 

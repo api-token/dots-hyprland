@@ -18,7 +18,7 @@ RDEPEND="
 	gui-apps/hyprlock
 	gui-apps/hyprpicker
 	media-sound/songrec
-	app-i18n/translate-shell
+	>=net-libs/nodejs-22
 	gui-apps/wlogout
 	sci-libs/libqalculate
 "

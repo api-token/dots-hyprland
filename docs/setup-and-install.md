@@ -17,7 +17,7 @@ Related: [distro dependencies](distros.md), [Hyprland](hyprland.md), [dotfiles a
 | `sdata/lib/environment-variables.sh` | XDG defaults, installer state paths, colors, temporary-file array |
 | `sdata/lib/functions.sh` | Interactive execution/error wrappers, logging, backup/Git/package helpers |
 | `sdata/lib/dist-determine.sh` | Host identification; see [distros](distros.md) |
-| `sdata/lib/package-installers.sh` | Shared font/cursor/MicroTeX/uv builders and Python venv setup |
+| `sdata/lib/package-installers.sh` | Shared font/cursor/uv builders and Python venv setup |
 | `sdata/dist-*` | Platform dependency definitions and dependency uninstall implementations |
 | `sdata/uv/` | Python input requirements, committed lock, Nix build environment, usage notes |
 | `diagnose` | Independent support report generator with an optional public upload |
@@ -166,7 +166,7 @@ This path is not equivalent to legacy: it syncs only `quickshell/ii`, has explic
 
 The installer respects an alternate `XDG_STATE_HOME`, but the shipped runtime Lua setting uses the fixed home-relative default. Keep those aligned when changing paths. The final warning in `3.files.sh:256` also still refers to old `.conf` filenames.
 
-Shared `package-installers.sh` additionally provides source/cache builders for Rubik, Gabarito, Bibata, MicroTeX, and an upstream uv installer. These are helpers, not proof that the current native distro route invokes them. MicroTeX helper installs into `/opt/MicroTeX`; font helpers use `/usr/local/share/`.
+Shared `package-installers.sh` additionally provides source/cache builders for Rubik, Gabarito, Bibata, and an upstream uv installer. These are helpers, not proof that the current native distro route invokes them. Font helpers use `/usr/local/share/`.
 
 `sdata/deps-info.md` distinguishes empty meta-packages from actual built packages and explains why dependencies exist. Use it to locate package groups and required executables, then verify against current platform definitions: it contains explicit uncertainty and older names (for example its matugen entry differs from current package scripts). Its `qalc` example illustrates why matching package names across distros is insufficient.
 

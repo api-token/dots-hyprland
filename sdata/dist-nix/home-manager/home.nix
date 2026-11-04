@@ -123,10 +123,6 @@ quickshell, home_attrs, ... }:
       kdePackages.systemsettings #systemsettings
 
       
-      ### illogical-impulse-microtex-git
-      # TODO: Not available as nixpkg
-
-
       ### illogical-impulse-portal
       #xdg-desktop-portal (Included elsewhere)
       #xdg-desktop-portal-kde (Included elsewhere)
@@ -167,7 +163,7 @@ quickshell, home_attrs, ... }:
       #hyprlock (Should not be installed via Nix; TODO: should install via nix in future when authentication problem fixed)
       hyprpicker #hyprpicker
       songrec #songrec
-      translate-shell #translate-shell
+      nodejs #nodejs
       wlogout #wlogout
       libqalculate #libqalculate
 

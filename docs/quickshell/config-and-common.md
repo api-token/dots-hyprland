@@ -45,21 +45,20 @@ Types used: `bool`, `int`, `real`, `string`, `list<string>`, `list<var>`, nested
 | Key | Line | Contents (selection) |
 |---|---|---|
 | `panelFamily` | 81 | `"ii"` or `"waffle"` (see [architecture.md](architecture.md#panel-families)). |
-| `policies` | 83 | `ai` (0 no / 1 yes / 2 local), `weeb` (0 no / 1 open / 2 closet) — gate sidebar tabs. |
-| `ai` | 88 | `systemPrompt` (with `{DISTRO}`, `{DE}`, `{DATETIME}`, `{WINDOWCLASS}` placeholders), `tool`, `extraModels` (list of model dicts). |
-| `appearance` | 107 | `extraBackgroundTint`, `fakeScreenRounding`, `fonts.{main,numbers,title,iconNerd,monospace,reading,expressive}`, `transparency.{enable,automatic,backgroundTransparency,contentTransparency}`, `wallpaperTheming.*` (+`terminalGenerationProps`), `palette.{type,accentColor}`. |
-| `audio` | 142 | `protection.{enable,maxAllowedIncrease,maxAllowed}`. |
-| `apps` | 152 | Commands for bluetooth/network/user/taskManager/terminal/update/volumeMixer. |
-| `background` | 164 | `widgets.{clock,weather}`, `parallax`, `wallpaperPath`, `thumbnailPath`, ... |
-| `bar` | 226 | `autoHide`, `bottom`, `cornerStyle` (0 hug/1 float/2 rect), `vertical`, `screenList`, `resources`, `utilButtons`, `workspaces`, `weather`, `indicators`, `tooltips`, `topLeftIcon`, ... |
-| `battery`, `calendar`, `cheatsheet`, `conflictKiller`, `crosshair`, `dock` | 287–325 | Per-feature options (`dock.enable` gates the Dock panel). |
-| `interactions` | 337 | `scrolling.*`, `deadPixelWorkaround`. |
-| `language` | 349 | `ui` (`"auto"` or `xx_XX`), `translator.*`. |
-| `launcher`, `light` (`night`, `antiFlashbang`), `lock` (`blur`, `security`, `launchOnStartup`...), `media`, `networking` (`userAgent`), `notifications` (`timeout`, `monitor.{enable,name}`), `osd`, `osk`, `overlay`, `overview` | 358–427 | |
-| `regionSelector`, `resources`, `tray`, `musicRecognition`, `search` (`prefix.*`, `imageSearch`) | 437–477 | |
-| `sidebar` | 498 | `translator`, `ai`, `booru`, `cornerOpen`, `quickToggles` (`android.toggles` list), `quickSliders`, `keepRightSidebarLoaded`, ... |
-| `screenRecord`, `screenSnip`, `sounds`, `time` (`pomodoro`), `updates`, `wallpaperSelector`, `windows` (`showTitlebar`, `centerTitle`), `hacks`, `workSafety` | 550–599 | |
-| `waffles` | 611 | Waffle-family-only: `tweaks.*`, `bar.{bottom,leftAlignApps}`, `actionCenter.toggles`, `calendar`. |
+| `policies` | 83 | `weeb` (0 no / 1 open / 2 closet) — gates wallpaper-selector and settings features. |
+| `appearance` | 87 | `extraBackgroundTint`, `fakeScreenRounding`, `fonts.{main,numbers,title,iconNerd,monospace,reading,expressive}`, `transparency.{enable,automatic,backgroundTransparency,contentTransparency}`, `wallpaperTheming.*` (+`terminalGenerationProps`), `palette.{type,accentColor}`. |
+| `audio` | 122 | `protection.{enable,maxAllowedIncrease,maxAllowed}`. |
+| `apps` | 132 | Commands for bluetooth/network/user/taskManager/terminal/update/volumeMixer. |
+| `background` | 144 | `widgets.{clock,weather}`, `parallax`, `wallpaperPath`, `thumbnailPath`, ... |
+| `bar` | 206 | `autoHide`, `bottom`, `cornerStyle` (0 hug/1 float/2 rect), `vertical`, `screenList`, `resources`, `utilButtons`, `workspaces`, `weather`, `indicators`, `tooltips`, `topLeftIcon`, ... |
+| `battery`, `calendar`, `cheatsheet`, `conflictKiller`, `crosshair`, `dock` | 267–305 | Per-feature options (`dock.enable` gates the Dock panel). |
+| `interactions` | 317 | `scrolling.*`, `deadPixelWorkaround`. |
+| `language` | 329 | `ui` (`"auto"` or `xx_XX`). |
+| `launcher`, `light` (`night`, `antiFlashbang`), `lock` (`blur`, `security`, `launchOnStartup`...), `media`, `networking` (`userAgent`), `notifications` (`timeout`, `monitor.{enable,name}`), `osd`, `osk`, `overlay`, `overview` | 333–402 | |
+| `regionSelector`, `resources`, `tray`, `musicRecognition`, `search` (`prefix.*`, `imageSearch`) | 412–452 | |
+| `sidebar` | 473 | `t3.tokenFile` (see [t3-sidebar.md](t3-sidebar.md)), `cornerOpen`, `quickToggles` (`android.toggles` list), `quickSliders`, `keepRightSidebarLoaded`, ... |
+| `screenRecord`, `screenSnip`, `sounds`, `time` (`pomodoro`), `updates`, `wallpaperSelector`, `windows` (`showTitlebar`, `centerTitle`), `hacks`, `workSafety` | 513–562 | |
+| `waffles` | 574 | Waffle-family-only: `tweaks.*`, `bar.{bottom,leftAlignApps}`, `actionCenter.toggles`, `calendar`. |
 
 Do not confuse with `Persistent.states` (runtime state, not user preferences) or `GlobalStates` (in-memory UI flags).
 
@@ -94,17 +93,17 @@ The waffle family uses its own `modules/waffle/looks/Looks.qml` instead (see [pa
 
 All `readonly`/plain string properties (`modules/common/Directories.qml`).
 - XDG (with `file://`): `home, config, state, cache, genericCache, documents, downloads, pictures, music, videos` from Qt `StandardPaths`. `state` and `cache` are app-scoped: they resolve to `~/.local/state/quickshell` and `~/.cache/quickshell` (consistent with matugen's output path `~/.local/state/quickshell/user/generated/colors.json` in `dots/.config/matugen/config.toml:6`). `config` is `~/.config`.
-- Shell paths (no `file://`): `assetsPath`, `scriptPath` (via `Quickshell.shellPath`), `shellConfig` = `~/.config/illogical-impulse`, `shellConfigName` = `config.json`, `shellConfigPath`, `defaultAiPrompts` (`defaults/ai/prompts`), `userAiPrompts` (`~/.config/illogical-impulse/ai/prompts`), `userActions` (`~/.config/illogical-impulse/actions`).
-- State: `todoPath` (`state/user/todo.json`), `notesPath` (`state/user/notes.txt`), `generatedMaterialThemePath` (`state/user/generated/colors.json`), `generatedWallpaperCategoryPath`, `aiChats` (`state/user/ai/chats`).
-- Cache/temp: `favicons`, `coverArt`, `booruPreviews`, `latexOutput`, `conflictCachePath`, `notificationsPath` (`cache/notifications/notifications.json`), `tempImages` (`/tmp/quickshell/media/images`), `cliphistDecode`, `screenshotTemp`.
-- Other: `booruDownloads` (`~/Pictures/homework`), `booruDownloadsNsfw`, `wallpaperSwitchScriptPath`, `aiTranslationScriptPath`, `recordScriptPath`, user avatar candidates (AccountsService, `~/.face`, `~/.face.icon`).
-- `Component.onCompleted` (`:54-65`) runs `mkdir -p` for shellConfig/favicons/aiChats/userActions and **wipes** coverArt, booruPreviews, latexOutput, cliphistDecode and tempImages on every startup.
+- Shell paths (no `file://`): `assetsPath`, `scriptPath` (via `Quickshell.shellPath`), `shellConfig` = `~/.config/illogical-impulse`, `shellConfigName` = `config.json`, `shellConfigPath`, `userActions` (`~/.config/illogical-impulse/actions`).
+- State: `todoPath` (`state/user/todo.json`), `notesPath` (`state/user/notes.txt`), `generatedMaterialThemePath` (`state/user/generated/colors.json`), `generatedWallpaperCategoryPath`.
+- Cache/temp: `favicons`, `coverArt`, `conflictCachePath`, `notificationsPath` (`cache/notifications/notifications.json`), `tempImages` (`/tmp/quickshell/media/images`), `cliphistDecode`, `screenshotTemp`.
+- Other: `wallpaperSwitchScriptPath`, `aiTranslationScriptPath`, `recordScriptPath`, user avatar candidates (AccountsService, `~/.face`, `~/.face.icon`).
+- `Component.onCompleted` (`:48-58`) runs `mkdir -p` for shellConfig/favicons/userActions and **wipes** coverArt, cliphistDecode and tempImages on every startup.
 - Use `FileUtils.trimFileProtocol()` when passing XDG paths to processes. Add new paths here rather than hardcoding.
 
 ## Persistent.qml
 
 - File: `${Directories.state}/states.json` → `~/.local/state/quickshell/states.json`. Same FileView+JsonAdapter pattern as Config (100 ms debounce, `watchChanges`, creates the file if missing). Access via `Persistent.states.*`, check `Persistent.ready`.
-- Keys: `hyprlandInstanceSignature`, `ai.{model,temperature}`, `cheatsheet.tabIndex`, `sidebar.bottomGroup.{collapsed,tab}`, `booru.{allowNsfw,provider}`, `idle.inhibit`, `overlay.open` (list) and per-overlay-widget geometry `{pinned,clickthrough,x,y,width,height[,tabIndex]}` for crosshair/floatingImage/fpsLimiter/recorder/resources/volumeMixer/notes, `timer.pomodoro.*`, `timer.stopwatch.*`.
+- Keys: `hyprlandInstanceSignature`, `cheatsheet.tabIndex`, `sidebar.bottomGroup.{collapsed,tab}`, `idle.inhibit`, `overlay.open` (list) and per-overlay-widget geometry `{pinned,clickthrough,x,y,width,height[,tabIndex]}` for crosshair/floatingImage/fpsLimiter/recorder/resources/volumeMixer/notes, `timer.pomodoro.*`, `timer.stopwatch.*`.
 - `isNewHyprlandInstance` (`:16`): compares the stored signature with `$HYPRLAND_INSTANCE_SIGNATURE` on load; used to restore state only within one Hyprland session (`services/Idle.qml:19`) and to auto-lock on login (`LockScreen.qml:135`).
 - Use for UI state that should survive a shell restart but isn't a user preference (tab indexes, window positions).
 
@@ -227,10 +226,7 @@ Material 3 styled, themed via `Appearance`. Grouped by purpose:
 - `pragma ComponentBehavior: Bound` + `required property` for delegates.
 - Format: 4 spaces, ≤110 columns (`.qmlformat.ini`).
 
-## defaults/
-
-- `defaults/ai/prompts/*.md` → `Directories.defaultAiPrompts`; users add their own in `~/.config/illogical-impulse/ai/prompts/` (`userAiPrompts`). `ii-` prefixed = original, `nyarch-Acchan` from Nyarch Assistant (GPLv3), `w-` = app-inspired (`defaults/ai/README.md`). Consumed by `services/Ai.qml` (see [services.md](services.md)).
-- There is no defaults file for `config.json`; defaults live in `Config.qml` itself.
+Defaults for `config.json` live in `Config.qml` itself; there is no separate defaults file.
 
 ## Gotchas
 

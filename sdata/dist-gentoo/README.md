@@ -53,7 +53,7 @@ overlay into Portage.
 | [`additional-useflags`](additional-useflags) | Transitive feature requirements appended to the same Portage package.use file. |
 | [`metapkgs.sh`](metapkgs.sh) | Package groups installed and removed by the dependency scripts. |
 
-MicroTeX and Material Symbols use live ebuilds. Quickshell keeps the `-git`
+Material Symbols uses a live ebuild. Quickshell keeps the `-git`
 package name for compatibility but is pinned to a tested upstream commit.
 Versioned theme and font ebuilds may also use pinned commits as their source.
 

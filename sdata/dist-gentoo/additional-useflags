@@ -1,6 +1,5 @@
 ############ Additional needed useflags
 x11-libs/cairo X
-dev-cpp/cairomm X
 dev-python/pycairo X
 media-libs/libglvnd X
 x11-libs/libxkbcommon X

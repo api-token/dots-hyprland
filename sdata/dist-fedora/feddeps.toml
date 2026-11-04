@@ -102,12 +102,6 @@ packages = [
   "plasma-systemsettings"
 ]
 
-# MicroTeX-git
-[groups.microtex]
-packages = [
-  "microtex"
-]
-
 # Portal
 [groups.portal]
 packages = [
@@ -198,7 +192,7 @@ packages = [
   "hyprlock",
   "hyprpicker",
   "songrec",
-  "translate-shell",
+  "nodejs",
   "qalculate",
   "wlogout"
 ]
