@@ -31,6 +31,7 @@ This checkout is a fork: `origin` = `api-token/dots-hyprland`, upstream = `end-4
 | Material panels: bar, sidebars, quick toggles, overview, OSD, lock, dock… | [quickshell/panels-ii.md](quickshell/panels-ii.md) |
 | Windows 11-style panels: taskbar, start menu, action center… | [quickshell/panels-waffle.md](quickshell/panels-waffle.md) |
 | Settings app pages; exposing a config option in the UI | [quickshell/settings-app.md](quickshell/settings-app.md) |
+| Planned T3 Code sidebar replacing the left sidebar (decisions, design, phases) | [quickshell/t3-sidebar.md](quickshell/t3-sidebar.md) |
 
 ## Runtime locations (not in the repo)
 
