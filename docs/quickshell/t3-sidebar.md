@@ -1,6 +1,6 @@
 # Plan: T3 Code sidebar replaces the left sidebar
 
-Status: **planning, nothing implemented.** Branch `t3-integration`. Paths are relative to
+Status: **phase 1 (spike) done**: the bridge works against the live server. Branch `t3-integration`. Paths are relative to
 `dots/.config/quickshell/ii/` unless they start with `t3code/` (the T3 Code clone at
 `~/git/t3code`, read at commit `567a105705`). Line numbers drift; re-read before editing.
 
@@ -25,18 +25,32 @@ search, drag-reorder, guest sharing, multi-machine environments, and an embedded
   protocol gets HTTP 426 (`t3code/apps/server/src/ws.ts:3440`). Frames are JSON:
   `{"_tag":"Request","id","tag","payload","headers":[]}` → `Chunk`… → `Exit`. The client must send
   `{"_tag":"Ack","requestId"}` after each `Chunk` or the stream stalls, and must answer `Ping`
-  (`t3code/.repos/effect/packages/effect/src/rpc/RpcServer.ts`).
+  (`t3code/.repos/effect/packages/effect/src/rpc/RpcServer.ts`). The *client* sends `Ping` and the
+  server answers `Pong`; the bridge uses that as its liveness check.
 - **Live feed:** `orchestration.subscribeShell` (`t3code/packages/contracts/src/orchestrationV2.ts`)
-  sends a `snapshot` (projects, threads), then `synchronized`, then `project.updated/removed` and
+  sends a `snapshot` (projects, threads), then `project.updated/removed` and
   `thread.updated/removed` events with a `sequence`. This is the same feed the web sidebar uses.
+  - A snapshot that has `resolvedRepositoryIdentityRoots` and no threads is a project-metadata
+    refresh (`t3code/apps/server/src/ws.ts`, `loadProjectMetadataSnapshot`). It must not clear the
+    thread list. One arrives right after the first snapshot.
+  - Threads include subagent children (562 of 1019 live). The web sidebar hides
+    `lineage.relationshipToParent == "subagent"` and `lineage.sideChat` (`isListedThreadLineage`).
+  - Projects use `title` and `workspaceRoot`, not `name`/`root`.
+  - The live snapshot is ~2.6 MB; filtered bridge output is ~180 KB.
 - **Auth:** needs scope `orchestration:read`. Issue a token once, by hand:
-  `t3 auth session issue --scopes orchestration:read --token-only` (it writes a session row to the
-  live T3 DB). Exchange it for a socket ticket via `POST /api/auth/websocket-ticket`, then connect
+  `~/.t3/bin/t3 auth session issue --scope orchestration:read --label ii-sidebar --token-only >
+  ~/.config/illogical-impulse/t3-token` (run with `umask 077`; it writes a session row to the live
+  T3 DB). The flag is `--scope`, not `--scopes`. The desktop app installs the `t3` shim at
+  `~/.t3/bin/t3`, which is not on `PATH`. Exchange it for a socket ticket via `POST /api/auth/websocket-ticket`, then connect
   with `?wsTicket=…`. Requests without an `Origin` header are allowed.
 - **Handoff:**
   - Open a thread: `xdg-open t3code://threads/<environmentId>/<threadId>`. The `environmentId` is
     from `GET /.well-known/t3/environment`.
-  - New thread in a project: `t3 app <projectRoot>`, which goes over the desktop control socket.
+    Verified: it reaches the running instance (no second window). `misc.focus_on_activate` is
+    already `true` in the defaults (`dots/.config/hypr/hyprland/general.lua:287`), so focus should
+    follow; not yet seen from another workspace.
+  - New thread in a project: `~/.t3/bin/t3 app <projectRoot>`, which goes over the desktop control
+    socket. Not run in the spike, to avoid hijacking the open window.
   - Launch when offline: `gtk-launch com.t3tools.T3Code`.
 - **Web sidebar default:** a flat list in sections (Pinned / Active / Working / Snoozed / Settled,
   `t3code/apps/web/src/components/Sidebar.logic.ts`). Grouping by project is an opt-in mode.
@@ -56,11 +70,16 @@ of QML and can be run by hand for debugging.
 - Reads the port from `server-runtime.json` and the token from a 0600 file.
 - Gets a ticket, subscribes to the shell feed, and handles Ack/Ping.
 - Reconnects with backoff.
-- Prints one JSON line per change: `{type:"state", online, error}`, `{type:"thread", …}`,
-  `{type:"project", …}`, `{type:"removed", id}`.
-- Fields it reads: thread `id, projectId, title, status, activityRunStatus, pendingRuntimeRequest,
-  archivedAt, pinnedAt, settledAt, snoozedUntil, lastVisitedAt, updatedAt, branch`; project
-  `id, name, root path`.
+- Prints one JSON line per change. The line types are listed at the top of the script:
+  `state`, `snapshot`, `projects`, `project`, `thread`, `removed`.
+- Fields it reads: thread `id, projectId, title, lineage, deletedAt, status, activityRunStatus,
+  blockedOnThreadWait, pendingRuntimeRequest, pendingGuestMessageCount, lastErrorClass, pinnedAt,
+  settledAt, snoozedUntil, lastVisitedAt, latestRunCompletedAt, updatedAt, branch, pinOrderKey,
+  activeOrderKey`; project `id, title, workspaceRoot`.
+- It derives each thread's `status` (approval / input / request / waiting / working / limited /
+  failed / ready, after `resolveSidebarThreadStatus` in `Sidebar.logic.ts`) and `section`
+  (snoozed / settled / pinned / active), so QML does no protocol logic.
+- `state.error` is one of `no-token`, `unauthorized`, `offline`, `protocol`, or `ticket <status>`.
 
 **`services/T3.qml` (singleton).**
 - Runs the bridge with `Process` + `SplitParser`, following the pattern in `services/Network.qml`.
@@ -100,9 +119,9 @@ Keep `policies.weeb`: wallpaper features still use it. `policies.ai` loses its o
 
 ## Phases
 
-1. **Spike.** Build the bridge alone and run it against the live server. Confirm the ticket flow,
-   ack handling, and that the nightly's schema matches the clone. Confirm that `xdg-open t3code://…`
-   focuses the window under Hyprland.
+1. **Spike (done).** `scripts/t3/t3-sidebar-bridge.mjs` ran against `0.1.7-nightly.20261104`:
+   ticket flow, acks, ping/pong over 50 s, live updates, and the `no-token`, `unauthorized` and
+   `offline` states all work. The nightly's schema matches the clone for the fields above.
 2. **Navigator.** Build `T3.qml`, the new content and the bar button, with offline and setup
    states.
 3. **Removal.** Delete the old tabs, services, config keys, settings controls and deps (separate
@@ -111,8 +130,7 @@ Keep `policies.weeb`: wallpaper features still use it. `policies.ai` loses its o
 
 ## Open / unverified
 
-- The nightly server (`0.1.7-nightly`) is newer than the clone (`0.1.6`), so the wire schema may
-  differ. Phase 1 settles this.
-- Whether Hyprland gives the T3 window focus on `xdg-open` (`misc.focus_on_activate`?).
+- Focus on `xdg-open` when T3 is on another workspace (expected, given `focus_on_activate`).
+- `t3 app <path>` from the shell (help text matches; not run).
 - Removing the AI code makes upstream (`end-4`) merges conflict in those files. That is accepted
   as a cost of the decision.
