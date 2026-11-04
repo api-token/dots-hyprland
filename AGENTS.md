@@ -8,6 +8,6 @@ This repo is end-4's **illogical-impulse** Hyprland dotfiles: a Bash installer (
 
 - When you change behavior that a doc in `docs/` describes, update that doc in the same commit.
 - Docs cite `path:line`. Line numbers drift, so re-read the code before editing.
-- User customizations belong in `~/.config/hypr/custom/*.lua` and `~/.config/illogical-impulse/config.json`, not in the defaults.
+- User customizations belong in `~/.config/hypr/custom/*.lua`, `~/.config/foot/custom/foot.ini` and `~/.config/illogical-impulse/config.json`, not in the defaults.
 - Don't run `./setup` or `./diagnose` unless asked: they modify the host.
 - Commit messages: use a short area prefix (`hypr: …`, `qs: …`, `gentoo: …`).
