@@ -193,7 +193,7 @@ Horizontal top/bottom bar.
 
 **Layout is hard-coded in `BarContent.qml`** — there is no config-driven widget list. Sections:
 1. Left `FocusedScrollMouseArea` (scroll = `Brightness.increase/decreaseBrightness()`, click toggles
-   left sidebar): `LeftSidebarButton`, `ActiveWindow`.
+   left sidebar): `LeftSidebarButton` (dot while `T3.attentionCount > 0`), `ActiveWindow`.
 2. Middle `Row` of three `BarGroup`s: [`Resources`, `Media`] · [`Workspaces`] (right-click toggles
    overview) · clickable group [`ClockWidget`, `UtilButtons`, `BatteryIndicator`] (click toggles right sidebar).
 3. Right `FocusedScrollMouseArea` (scroll = `Audio.increment/decrementVolume()`), `RowLayout`
@@ -330,27 +330,22 @@ service: lock, suspend, logout, launchTaskManager, hibernate, poweroff, reboot, 
 Shows warnings from `SessionWarnings` (downloads / package manager running). Closes when locking.
 
 ### sidebarLeft — `sidebarLeft/SidebarLeft.qml` → `SidebarLeftContent.qml`
-Left drawer with tabs. Window: namespace `quickshell:sidebarLeft`, OnDemand focus, dismissable grab,
-width `sidebarWidth` or `sidebarWidthExtended`.
+Left drawer: a read-only **T3 Code navigator** ([t3-sidebar.md](t3-sidebar.md)). Window: namespace
+`quickshell:sidebarLeft`, OnDemand focus, dismissable grab, width `sidebarWidth` or
+`sidebarWidthExtended`.
 - Keys inside: Esc close; Ctrl+O extend width; Ctrl+D **detach** into a `FloatingWindow` (content
   object is created once with `createObject(null)` and re-parented between the PanelWindow and the
   FloatingWindow, so state survives); Ctrl+P **pin** (sets `exclusiveZone` to sidebar width; uses a
-  hyprctl cursor-move workaround). Ctrl+PgUp/PgDn switch tabs.
-- Tabs (`SidebarLeftContent.qml`): built from `tabButtonList` + `swipeView.contentChildren`, both
-  conditional:
-  - AI chat `AiChat.qml` if `Config.options.policies.ai !== 0`
-  - Translator `Translator.qml` if `Config.options.sidebar.translator.enable` (uses `trans` CLI,
-    `language.translator.{sourceLanguage,targetLanguage}`, `sidebar.translator.delay`)
-  - Anime/booru `Anime.qml` if `policies.weeb !== 0`; with `weeb === 2` ("closet") the page exists in
-    the SwipeView but has **no tab button** (reach via Ctrl+PgDn).
-  - Placeholder page when nothing else is enabled.
-- `AiChat.qml` (+ `aiChat/`: `AiMessage`, `MessageTextBlock`, `MessageCodeBlock`, `MessageThinkBlock`,
-  `AttachedFileIndicator`, …) talks to the `Ai` service (models, tools, API keys via keyring, saved
-  chats, temperature). Slash commands (prefix `/`): attach, model, tool, prompt, key, save, load,
-  clear, temp, test (`AiChat.qml:20-200`). Config `ai.*` (systemPrompt, tool, extraModels),
-  `sidebar.ai.textFadeIn`.
-- `Anime.qml` (+ `anime/BooruResponse`, `BooruImage`) uses `Booru` service; `sidebar.booru.{allowNsfw,defaultProvider,limit,zerochan.username}`.
-- Shared helpers: `ApiCommandButton`, `ApiInputBoxIndicator`, `DescriptionBox`, `ScrollToBottomButton`.
+  hyprctl cursor-move workaround).
+- Content (`SidebarLeftContent.qml`, data from the `T3` service): header with "new thread" (opens a
+  project picker, then `t3 app <root>`) and "open T3 Code"; thread sections Pinned / Active /
+  Snoozed, and Settled collapsed (first 30). Rows are `T3ThreadRow.qml` (status icon, title, project,
+  relative time). Clicking a row opens it in the T3 window via `t3code://` and closes the drawer
+  unless it is pinned or detached. When T3 is unreachable it shows a setup/offline state keyed on
+  `T3.error` (copy-token-command, launch button).
+- The old tabs (`AiChat.qml`, `Translator.qml`, `Anime.qml`, `aiChat/`, `translator/`, `anime/`, and
+  helpers `ApiCommandButton`, `ApiInputBoxIndicator`, `DescriptionBox`, `ScrollToBottomButton`) are no
+  longer loaded and are due for removal (phase 3 of the plan).
 
 ### sidebarRight — `sidebarRight/SidebarRight.qml` → `SidebarRightContent.qml`
 Right drawer (control center). Content column:
@@ -431,14 +426,6 @@ If `Config.options.wallpaperSelector.useSystemFileDialog`, toggling opens
    in `Config.qml` (existing user configs won't get it; users add via edit mode).
 5. Classic style: optionally add `classicStyle/MyToggle.qml` (`QuickToggleButton`) to
    `ClassicQuickPanel.qml`. For waffle parity see [panels-waffle.md](panels-waffle.md).
-
-### Add a left sidebar tab
-In `sidebarLeft/SidebarLeftContent.qml`: add a `Component { id: myTab; MyTab {} }`, then add matching
-entries — **in the same order** — to `tabButtonList` (`{icon, name}`) and `swipeView.contentChildren`
-(`myTab.createObject()`), both behind the same enable condition (e.g. a new
-`Config.options.sidebar.myTab.enable`). Mismatched order/conditions desync tab buttons and pages
-(index-based). Put the page in `sidebarLeft/MyTab.qml`; `focusActiveItem()` calls
-`swipeView.currentItem.forceActiveFocus()`, so the page root should forward focus to its input.
 
 ### Add a right sidebar bottom tab
 Append `{ type, name, icon, widget: "dir/MyWidget.qml" }` to `tabs` in `sidebarRight/BottomWidgetGroup.qml`

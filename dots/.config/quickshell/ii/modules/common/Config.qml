@@ -497,6 +497,9 @@ Singleton {
 
             property JsonObject sidebar: JsonObject {
                 property bool keepRightSidebarLoaded: true
+                property JsonObject t3: JsonObject {
+                    property string tokenFile: "" // Empty: ~/.config/illogical-impulse/t3-token
+                }
                 property JsonObject translator: JsonObject {
                     property bool enable: false
                     property int delay: 300 // Delay before sending request. Reduces (potential) rate limits and lag.

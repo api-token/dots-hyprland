@@ -1,6 +1,7 @@
 # Plan: T3 Code sidebar replaces the left sidebar
 
-Status: **phase 1 (spike) done**: the bridge works against the live server. Branch `t3-integration`. Paths are relative to
+Status: **phases 1–2 done**: the bridge and the navigator work against the live server. The old
+tabs are unloaded but not yet deleted (phase 3). Branch `t3-integration`. Paths are relative to
 `dots/.config/quickshell/ii/` unless they start with `t3code/` (the T3 Code clone at
 `~/git/t3code`, read at commit `567a105705`). Line numbers drift; re-read before editing.
 
@@ -91,15 +92,27 @@ of QML and can be run by hand for debugging.
 `scopeRoot` property so `SidebarLeft.qml` (window, focus grab, extend, pin, detach) stays untouched.
 - Content:
   - Header with a "new thread" button.
-  - Sectioned thread list: Pinned / Active / Working. Settled is hidden or collapsed.
+  - Sectioned thread list: Pinned / Active / Snoozed, then Settled collapsed (first 30). There is no
+    separate Working shelf; working rows show a spinning icon instead.
+  - "New thread" opens an inline project picker (most recently active first).
   - Rows show the title, project name, a status icon, and the relative time.
   - Offline or setup state: either "T3 isn't running, Launch", or "No token, run `<cmd>`".
 - Clicking a row opens the thread and closes the panel.
 - Notification and Wi-Fi lists are references for the list, delegate and empty-state patterns
   (`modules/common/widgets/NotificationListView.qml`, `modules/ii/sidebarRight/wifiNetworks/`).
 
-**Config.** Add `Config.options.sidebar.t3` with `tokenFile`, which defaults to a path under
-`~/.config/illogical-impulse/`. Leave the endpoint out: it is read from `server-runtime.json`.
+**Config.** `Config.options.sidebar.t3.tokenFile`; empty (the default) means
+`~/.config/illogical-impulse/t3-token`. The endpoint is read from `server-runtime.json`.
+
+**QML notes.** `T3.*Threads` are `var` arrays, not `list<T3Thread>`: `ScriptModel.values` rejects a
+`QQmlListReference`. Sorting re-runs on a debounced `revision` counter. The bridge process starts with
+the bar (the bar button reads `T3.attentionCount`).
+
+**Testing without reloading the live shell.** Make a temp dir that symlinks every entry of
+`dots/.config/quickshell/ii/` except `shell.qml`, add a `shell.qml` with a `FloatingWindow` holding
+`SidebarLeftContent { scopeRoot: QtObject { property bool pin: true; property bool detach: false } }`,
+and run `qs -p <dir>/shell.qml`. It needs the `shapes` submodule initialized, and `Directories` wipes
+the shell's cache dirs on start.
 
 ## Touch set
 
@@ -122,8 +135,10 @@ Keep `policies.weeb`: wallpaper features still use it. `policies.ai` loses its o
 1. **Spike (done).** `scripts/t3/t3-sidebar-bridge.mjs` ran against `0.1.7-nightly.20261104`:
    ticket flow, acks, ping/pong over 50 s, live updates, and the `no-token`, `unauthorized` and
    `offline` states all work. The nightly's schema matches the clone for the fields above.
-2. **Navigator.** Build `T3.qml`, the new content and the bar button, with offline and setup
-   states.
+2. **Navigator (done).** `services/T3.qml`, `services/t3/T3Thread.qml`, the new
+   `SidebarLeftContent.qml` and `T3ThreadRow.qml`, and the bar button dot. Checked in the test
+   harness with live data: thread list, settled expand, project picker, no-token and offline
+   states. Clicks (`xdg-open`, `t3 app`) were not exercised from the panel.
 3. **Removal.** Delete the old tabs, services, config keys, settings controls and deps (separate
    commit).
 4. **Docs.** Update the docs listed above.
