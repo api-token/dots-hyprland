@@ -17,7 +17,8 @@ tabs are deleted. Branch `t3-integration`. Paths are relative to
 
 Waffle family (it maps `sidebarLeftOpen` to its own action center,
 `modules/waffle/actionCenter/WaffleActionCenter.qml`), write actions (pin/archive/rename/snooze),
-search, drag-reorder, guest sharing, multi-machine environments, and an embedded web view.
+search, drag-reorder, guest sharing, and an embedded web view. Multiple machines were added later;
+see [Other machines](#other-machines).
 
 ## How T3 exposes the data
 
@@ -109,6 +110,31 @@ of QML and can be run by hand for debugging.
 **Config.** `Config.options.sidebar.t3.tokenFile`; empty (the default) means
 `~/.config/illogical-impulse/t3-token`. The endpoint is read from `server-runtime.json`.
 
+## Other machines
+
+The local server's shell feed has only its own threads, even when the T3 app is connected to other
+machines (T3 merges those in the client). So the bridge connects to each machine itself.
+
+- **Config.** `sidebar.t3.remotes` in `~/.config/illogical-impulse/config.json`, a list of
+  `{ "url": "http://ryan-arch:3773", "tokenFile": "" }`. An empty `tokenFile` means
+  `~/.config/illogical-impulse/t3-token-<host>`. The URL must reach that machine's T3 server
+  directly, such as over Tailscale; its server must listen beyond loopback (for example `t3 up --lan`; the
+  `host` in its `server-runtime.json` shows what it listens on). T3 Connect's relay is not supported.
+- **Token.** Issued on the remote, saved here:
+  `umask 077; ssh <host> '~/.t3/bin/t3 auth session issue --scope orchestration:read --label ii-sidebar-<this-machine> --token-only' > ~/.config/illogical-impulse/t3-token-<host>`.
+  The panel's notice row copies this command. Revoke it in that machine's Settings → Sharing &
+  access.
+- **Bridge.** `--remotes '<json>'`; one reconnect loop per machine. Every output line has a
+  `machine` key: `local`, or the remote's URL.
+- **Service.** Threads are keyed by machine and id. A machine that goes offline has its threads
+  dropped until it reconnects, so no stale status shows. `online`/`error` stay this machine's, so
+  the offline screen only appears when the local T3 app is down. A change to `remotes` restarts the
+  bridge: a running `Process` ignores command changes, and `Config` can load after it starts.
+- **Clicks.** A remote thread opens with that machine's environment id
+  (`t3code://threads/<environmentId>/<threadId>`), which needs the T3 app to be connected to that
+  machine too. "New thread" lists only this machine's projects, since `t3 app <root>` opens a local
+  path.
+
 **QML notes.** `T3.*Threads` are `var` arrays, not `list<T3Thread>`: `ScriptModel.values` rejects a
 `QQmlListReference`. Sorting re-runs on a debounced `revision` counter. The bridge process starts with
 the bar (the bar button reads `T3.attentionCount`).
@@ -157,6 +183,9 @@ Keep `policies.weeb`: wallpaper features still use it. `policies.ai` loses its o
 
 ## Open / unverified
 
+- Opening a remote thread from the panel (the `t3code://` link with the remote's environment id)
+  was not clicked through; the list itself was checked live against Ryan-Arch
+  (`0.1.4-nightly.20261028`, protocol 2).
 - Focus on `xdg-open` when T3 is on another workspace (expected, given `focus_on_activate`).
 - `t3 app <path>` from the shell (help text matches; not run).
 - The Gemini scripts read `apiKeys.gemini` from the keyring, which only the removed chat's `/key`

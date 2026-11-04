@@ -46,6 +46,8 @@ For QML language tooling, the guide creates `~/.config/quickshell/ii/.qmlls.ini`
 
 The guide starts Hyprland without UWSM and runs `pkill qs; qs -c ii` to observe shell logs; installed QML edits reload live (`:58`). This command stops a running shell, so use it intentionally in a desktop session. It is valid Fish syntax. Do not confuse installed `~/.config/quickshell/ii` with the tracked `dots/.config/quickshell/ii`; the installer copies files rather than symlinking them. Normal reinstall syncs the entire Quickshell directory with deletion, so uncommitted installed edits need care ([setup](setup-and-install.md)).
 
+To iterate from the checkout instead, replace the installed copy with a symlink: `mv ~/.config/quickshell/ii <backup>; ln -s (pwd)/dots/.config/quickshell/ii ~/.config/quickshell/ii` (Fish, run from the repo root), then restart the shell (Ctrl+Super+R). Paths resolve through `Quickshell.shellPath`, so scripts follow the link. QML edits reload live; spawned helpers such as the T3 bridge only restart with the shell. A later `./setup` replaces the link with a copy again.
+
 The README's advertised bootstrap uses Bash process substitution, which is not directly Fish syntax. Prefer `./setup install` from an existing clone in Fish; the script's own shebang invokes Bash. This documentation does not execute it.
 
 ### PR and issue intake

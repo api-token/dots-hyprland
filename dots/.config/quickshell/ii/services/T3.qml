@@ -10,22 +10,44 @@ import Quickshell.Io
 
 /**
  * T3 Code threads for the left sidebar. Runs scripts/t3/t3-sidebar-bridge.mjs, which talks to the
- * T3 desktop app's local server. Read-only: clicks hand off to the T3 window.
- * See docs/quickshell/t3-sidebar.md.
+ * T3 desktop app's local server and to each machine in sidebar.t3.remotes. Read-only: clicks hand
+ * off to the T3 window. See docs/quickshell/t3-sidebar.md.
  */
 Singleton {
     id: root
 
+    // online and error describe this machine; the panel needs it, since clicks open the local app.
     property bool online: false
     // "" when online; otherwise starting | no-token | unauthorized | offline | protocol | bridge | other text
     property string error: "starting"
-    property string environmentId: ""
-    property var projects: ({}) // id -> { id, name, root }
+    // Machine key ("local" or a remote's URL) -> { key, label, online, error, environmentId }
+    property var machines: ({})
+    property var projects: ({}) // machine -> { projectId -> { id, name, root } }
     readonly property list<T3Thread> threads: []
 
     readonly property string tokenFile: Config.options.sidebar.t3.tokenFile || `${Directories.shellConfig}/t3-token`
     readonly property string cliPath: `${Quickshell.env("HOME")}/.t3/bin/t3`
     readonly property string tokenCommand: `umask 077; ~/.t3/bin/t3 auth session issue --scope orchestration:read --label ii-sidebar --token-only > ${root.tokenFile}`
+
+    // sidebar.t3.remotes entries are { url, tokenFile? }; the token file defaults to t3-token-<host>.
+    readonly property var remotes: (Config.options.sidebar.t3.remotes ?? []).filter(r => r?.url).map(r => ({
+                url: r.url,
+                host: root.hostOf(r.url),
+                tokenFile: r.tokenFile || `${Directories.shellConfig}/t3-token-${root.hostOf(r.url)}`
+            }))
+    // Remotes that aren't connected, for the panel's notices.
+    readonly property var remoteProblems: root.remotes.map(r => Object.assign({}, r, root.machines[r.url] ?? { label: r.host, error: "starting" }, {
+                command: root.remoteTokenCommand(r)
+            })).filter(m => !m.online)
+
+    function hostOf(url) {
+        return url.replace(/^[a-z]+:\/\//, "").replace(/[:\/].*$/, "");
+    }
+
+    // Issues the token on the remote over ssh and saves it here.
+    function remoteTokenCommand(remote) {
+        return `umask 077; ssh ${remote.host} '~/.t3/bin/t3 auth session issue --scope orchestration:read --label ii-sidebar-${root.machines.local?.label || "remote"} --token-only' > ${remote.tokenFile}`;
+    }
 
     // Bumped (debounced) on any change so the sorted lists below recompute.
     property int revision: 0
@@ -54,18 +76,24 @@ Singleton {
         return root.threads.filter(t => t.needsAttention && t.section !== "settled").length;
     }
 
-    function projectName(projectId) {
-        return root.projects[projectId]?.name ?? "";
+    function projectName(machine, projectId) {
+        return root.projects[machine]?.[projectId]?.name ?? "";
     }
 
-    function openThread(threadId) {
-        if (!root.environmentId) return;
-        Quickshell.execDetached(["xdg-open", `t3code://threads/${root.environmentId}/${threadId}`]);
+    // "" for this machine, so local rows stay unlabeled.
+    function machineLabel(machine) {
+        return machine === "local" ? "" : (root.machines[machine]?.label ?? root.hostOf(machine));
     }
 
-    // Opens the project in the T3 window, where a new thread can be started.
+    function openThread(thread) {
+        const environmentId = root.machines[thread.machine]?.environmentId;
+        if (!environmentId) return;
+        Quickshell.execDetached(["xdg-open", `t3code://threads/${environmentId}/${thread.threadId}`]);
+    }
+
+    // Opens a local project in the T3 window, where a new thread can be started.
     function newThread(projectId) {
-        const path = root.projects[projectId]?.root;
+        const path = root.projects.local?.[projectId]?.root;
         if (path) Quickshell.execDetached([root.cliPath, "app", path]);
     }
 
@@ -73,56 +101,65 @@ Singleton {
         Quickshell.execDetached(["gtk-launch", "com.t3tools.T3Code"]);
     }
 
-    function upsert(data) {
-        const existing = root.threads.find(t => t.threadId === data.id);
+    function upsert(machine, data) {
+        data = Object.assign({ machine }, data);
+        const existing = root.threads.find(t => t.machine === machine && t.threadId === data.id);
         if (existing) existing.data = data;
         else root.threads.push(threadComp.createObject(root, { data }));
     }
 
-    function remove(threadId) {
-        const i = root.threads.findIndex(t => t.threadId === threadId);
-        if (i >= 0) root.threads.splice(i, 1).forEach(t => t.destroy());
+    function removeWhere(predicate) {
+        for (let i = root.threads.length - 1; i >= 0; i--) {
+            if (predicate(root.threads[i])) root.threads.splice(i, 1).forEach(t => t.destroy());
+        }
     }
 
     function handle(msg) {
+        const machine = msg.machine ?? "local";
         switch (msg.type) {
         case "state":
-            root.online = msg.online;
-            root.error = msg.online ? "" : (msg.error ?? "offline");
-            if (msg.environmentId) root.environmentId = msg.environmentId;
-            return;
+            root.machines = Object.assign({}, root.machines, {
+                [machine]: { key: machine, label: msg.label ?? "", online: msg.online, error: msg.online ? "" : (msg.error ?? "offline"), environmentId: msg.environmentId ?? "" }
+            });
+            if (machine === "local") {
+                root.online = msg.online;
+                root.error = msg.online ? "" : (msg.error ?? "offline");
+            }
+            // An unreachable machine's threads would show stale status, so drop them until it is back.
+            if (!msg.online) {
+                root.removeWhere(t => t.machine === machine);
+                root.setProjects(machine, []);
+            }
+            break;
         case "snapshot": {
             const ids = new Set(msg.threads.map(t => t.id));
-            for (const t of root.threads.filter(t => !ids.has(t.threadId))) root.remove(t.threadId);
-            for (const t of msg.threads) root.upsert(t);
-            root.setProjects(msg.projects);
+            root.removeWhere(t => t.machine === machine && !ids.has(t.threadId));
+            for (const t of msg.threads) root.upsert(machine, t);
+            root.setProjects(machine, msg.projects);
             break;
         }
         case "projects":
-            root.setProjects(msg.projects);
+            // Metadata refreshes can arrive in several chunks, each covering some projects.
+            root.setProjects(machine, Object.values(Object.assign({}, root.projects[machine], Object.fromEntries(msg.projects.map(p => [p.id, p])))));
             break;
         case "project":
-            root.projects = Object.assign({}, root.projects, { [msg.project.id]: msg.project });
+            root.setProjects(machine, Object.values(Object.assign({}, root.projects[machine], { [msg.project.id]: msg.project })));
             break;
         case "thread":
-            root.upsert(msg.thread);
+            root.upsert(machine, msg.thread);
             break;
         case "removed":
-            if (msg.kind === "thread") root.remove(msg.id);
-            else {
-                const p = Object.assign({}, root.projects);
-                delete p[msg.id];
-                root.projects = p;
-            }
+            if (msg.kind === "thread") root.removeWhere(t => t.machine === machine && t.threadId === msg.id);
+            else root.setProjects(machine, Object.values(root.projects[machine] ?? {}).filter(p => p.id !== msg.id));
             break;
         }
         revisionTimer.restart();
     }
 
-    function setProjects(list) {
+    function setProjects(machine, list) {
         const p = {};
         for (const project of list) p[project.id] = project;
-        root.projects = p;
+        root.projects = Object.assign({}, root.projects, { [machine]: p });
     }
 
     Component {
@@ -143,10 +180,19 @@ Singleton {
         onTriggered: root.now = Date.now()
     }
 
+    // A running Process ignores command changes, and Config can load after the bridge starts.
+    readonly property string remotesArg: JSON.stringify(root.remotes.map(r => ({ url: r.url, tokenFile: r.tokenFile })))
+    property bool restartingBridge: false
+    onRemotesArgChanged: {
+        if (!bridge.running) return;
+        root.restartingBridge = true;
+        bridge.running = false;
+    }
+
     Process {
         id: bridge
         running: true
-        command: ["node", FileUtils.trimFileProtocol(`${Directories.scriptPath}/t3/t3-sidebar-bridge.mjs`), "--token-file", root.tokenFile]
+        command: ["node", FileUtils.trimFileProtocol(`${Directories.scriptPath}/t3/t3-sidebar-bridge.mjs`), "--token-file", root.tokenFile, "--remotes", root.remotesArg]
         stdout: SplitParser {
             onRead: line => {
                 try {
@@ -161,6 +207,15 @@ Singleton {
         }
         onRunningChanged: {
             if (running) return;
+            if (root.restartingBridge) {
+                // Machines removed from the config must not linger.
+                root.restartingBridge = false;
+                root.removeWhere(() => true);
+                root.machines = {};
+                root.projects = {};
+                Qt.callLater(() => bridge.running = true);
+                return;
+            }
             // Node missing or the bridge crashed; it handles reconnects itself.
             root.online = false;
             root.error = "bridge";

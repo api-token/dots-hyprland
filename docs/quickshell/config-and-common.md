@@ -56,7 +56,7 @@ Types used: `bool`, `int`, `real`, `string`, `list<string>`, `list<var>`, nested
 | `language` | 329 | `ui` (`"auto"` or `xx_XX`). |
 | `launcher`, `light` (`night`, `antiFlashbang`), `lock` (`blur`, `security`, `launchOnStartup`...), `media`, `networking` (`userAgent`), `notifications` (`timeout`, `monitor.{enable,name}`), `osd`, `osk`, `overlay`, `overview` | 333–402 | |
 | `regionSelector`, `resources`, `tray`, `musicRecognition`, `search` (`prefix.*`, `imageSearch`) | 412–452 | |
-| `sidebar` | 473 | `t3.tokenFile` (see [t3-sidebar.md](t3-sidebar.md)), `cornerOpen`, `quickToggles` (`android.toggles` list), `quickSliders`, `keepRightSidebarLoaded`, ... |
+| `sidebar` | 473 | `t3.tokenFile`, `t3.remotes` (see [t3-sidebar.md](t3-sidebar.md)), `cornerOpen`, `quickToggles` (`android.toggles` list), `quickSliders`, `keepRightSidebarLoaded`, ... |
 | `screenRecord`, `screenSnip`, `sounds`, `time` (`pomodoro`), `updates`, `wallpaperSelector`, `windows` (`showTitlebar`, `centerTitle`), `hacks`, `workSafety` | 513–562 | |
 | `waffles` | 574 | Waffle-family-only: `tweaks.*`, `bar.{bottom,leftAlignApps}`, `actionCenter.toggles`, `calendar`. |
 
