@@ -343,9 +343,7 @@ Left drawer: a read-only **T3 Code navigator** ([t3-sidebar.md](t3-sidebar.md)).
   relative time). Clicking a row opens it in the T3 window via `t3code://` and closes the drawer
   unless it is pinned or detached. When T3 is unreachable it shows a setup/offline state keyed on
   `T3.error` (copy-token-command, launch button).
-- The old tabs (`AiChat.qml`, `Translator.qml`, `Anime.qml`, `aiChat/`, `translator/`, `anime/`, and
-  helpers `ApiCommandButton`, `ApiInputBoxIndicator`, `DescriptionBox`, `ScrollToBottomButton`) are no
-  longer loaded and are due for removal (phase 3 of the plan).
+- The AI chat, Translator and Anime tabs, and their services, were removed for this.
 
 ### sidebarRight — `sidebarRight/SidebarRight.qml` → `SidebarRightContent.qml`
 Right drawer (control center). Content column:
@@ -463,7 +461,5 @@ Append `{ type, name, icon, widget: "dir/MyWidget.qml" }` to `tabs` in `sidebarR
   by waffle (`modules/waffle/onScreenDisplay/WaffleOSD.qml:32`); in ii it is only cleared (`onMovedAway`).
 - Android toggle edit mode writes the config JSON directly; `availableToggleTypes` and the
   `DelegateChooser` must both know a type or it silently renders nothing.
-- `policies.weeb === 2` hides the Anime tab button but keeps the page; `policies.ai === 2` ("local")
-  still shows AI chat (condition is `!== 0`).
 - Five ii modules are also loaded by the waffle family (cheatsheet, OSK, overlay, screenTranslator,
   wallpaperSelector) — test both when changing them.

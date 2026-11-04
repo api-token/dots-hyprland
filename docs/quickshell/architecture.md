@@ -28,9 +28,8 @@ Paths below are relative to `dots/.config/quickshell/ii/` unless they start with
 | `modules/ii/` | Material "ii" panels: background, bar, cheatsheet, dock, lock, mediaControls, notificationPopup, onScreenDisplay, onScreenKeyboard, overlay, overview, polkit, regionSelector, screenCorners, screenTranslator, sessionScreen, sidebarLeft, sidebarRight, verticalBar, wallpaperSelector. |
 | `modules/waffle/` | Windows-11-like panels + `looks/` (its own widget set and `Looks.qml` styling singleton). `modules/waffle/README.md` is the author's notes. |
 | `modules/settings/` | Pages of the settings app (`QuickConfig.qml`, `GeneralConfig.qml`, `BarConfig.qml`, ...). |
-| `services/` | Singletons wrapping system state (audio, network, Hyprland, notifications, AI, wallpapers, theme...). |
+| `services/` | Singletons wrapping system state (audio, network, Hyprland, notifications, T3 Code, wallpapers, theme...). |
 | `scripts/` | Shell/Python helpers called via `Process`/`execDetached` and from Hyprland binds. |
-| `defaults/ai/prompts/` | Bundled AI system prompts (`*.md`). |
 | `assets/icons/` (+ `fluent/`), `assets/images/default_wallpaper.png` | Static SVG icons (distro logos, AI providers...) and the first-run wallpaper. |
 | `translations/*.json`, `translations/tools/` | UI string tables per locale + maintenance scripts. |
 
@@ -187,7 +186,8 @@ Python scripts run in the uv venv at `$ILLOGICAL_IMPULSE_VIRTUAL_ENV` (default `
 | `images/` | `find_regions.py` (region selector, `modules/ii/regionSelector/RegionSelection.qml`), `least_busy_region.py` (background widget placement, `modules/ii/background/widgets/AbstractBackgroundWidget.qml`), `text_color.py` (screen translator overlay). Each via `*-venv.sh`. |
 | `thumbnails/` | `thumbgen.py` via `thumbgen-venv.sh`, or `generate-thumbnails-magick.sh` (ImageMagick) — freedesktop thumbnails for `services/Wallpapers.qml`. |
 | `keyring/` | `try_lookup.sh` (`services/KeyringStorage.qml`), `unlock.sh` (`LockScreen.qml`, unlocks the keyring with the lock password), `is_unlocked.sh` (used by the other two). |
-| `ai/` | `gemini-translate.sh` (above), `gemini-categorize-wallpaper.sh` (switchwall), `show-installed-ollama-models.sh` (`services/Ai.qml`). |
+| `ai/` | `gemini-translate.sh` (above), `gemini-categorize-wallpaper.sh` (switchwall). |
+| `t3/` | `t3-sidebar-bridge.mjs` (Node; run by `services/T3.qml`, see [t3-sidebar.md](t3-sidebar.md)). |
 | `hyprland/hyprconfigurator.py` | Reads/writes Hyprland options for `services/HyprlandConfig.qml`. |
 | `videos/record.sh` | Screen recording (`Directories.recordScriptPath`; also bound directly in `keybinds.lua:88-92`). |
 | `musicRecognition/recognize-music.sh` | `services/SongRec.qml`. |
@@ -264,4 +264,4 @@ A new **module inside an existing panel** (e.g. a bar widget) is just a componen
 - `bar` target is defined by both `Bar` and `VerticalBar`, but only one is loaded at a time (`bar.vertical`).
 - `qsConfig` env var (`variables.lua:5`) is the config folder name used by Hyprland binds/execs; QML code never hardcodes the folder and resolves its own files with `Quickshell.shellPath(...)`. The fish alias `q` and `modules/waffle/README.md` hardcode `ii`. Renaming the folder means changing `qsConfig` and those.
 - The `modules/common/widgets/shapes` git submodule must be initialised (`git submodule update --init`); otherwise `MaterialShape`/`MaterialCookie` imports fail and dependent panels break at load.
-- `Directories.qml` `Component.onCompleted` deletes and recreates cache dirs (cover art, booru previews, LaTeX, cliphist decode, `/tmp/quickshell/media/images`) on every start, including `qs -p` apps.
+- `Directories.qml` `Component.onCompleted` deletes and recreates cache dirs (cover art, cliphist decode, `/tmp/quickshell/media/images`) on every start, including `qs -p` apps.

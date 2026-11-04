@@ -1,7 +1,7 @@
 # Plan: T3 Code sidebar replaces the left sidebar
 
-Status: **phases 1–2 done**: the bridge and the navigator work against the live server. The old
-tabs are unloaded but not yet deleted (phase 3). Branch `t3-integration`. Paths are relative to
+Status: **phases 1–3 done**: the bridge and the navigator work against the live server, and the old
+tabs are deleted. Branch `t3-integration`. Paths are relative to
 `dots/.config/quickshell/ii/` unless they start with `t3code/` (the T3 Code clone at
 `~/git/t3code`, read at commit `567a105705`). Line numbers drift; re-read before editing.
 
@@ -11,6 +11,7 @@ tabs are unloaded but not yet deleted (phase 3). Branch `t3-integration`. Paths 
   Clicking hands off to the T3 desktop window. No chat, composer or approvals in the shell.
 - The AI chat, Translator and Anime tabs are **removed**.
 - When T3 isn't reachable, the panel shows an **offline state with a launch button**.
+- MicroTeX is dropped from the installer too (its only user was the AI chat's LaTeX rendering).
 
 ## Out of scope
 
@@ -139,13 +140,23 @@ Keep `policies.weeb`: wallpaper features still use it. `policies.ai` loses its o
    `SidebarLeftContent.qml` and `T3ThreadRow.qml`, and the bar button dot. Checked in the test
    harness with live data: thread list, settled expand, project picker, no-token and offline
    states. Clicks (`xdg-open`, `t3 app`) were not exercised from the panel.
-3. **Removal.** Delete the old tabs, services, config keys, settings controls and deps (separate
-   commit).
-4. **Docs.** Update the docs listed above.
+3. **Removal (done).** Deleted the tabs and helpers, `Ai`/`services/ai/`, `Booru`,
+   `BooruResponseData`, `LatexRenderer`, `defaults/ai/prompts/`, `scripts/ai/show-installed-ollama-models.sh`,
+   their `Config`/`Persistent`/`Directories` entries, `policies.ai`, and the settings/welcome
+   controls. Deps: `translate-shell` → `nodejs` in the widgets group on all four distros (Arch
+   `pkgrel=8`, Gentoo `-r6`); MicroTeX removed everywhere (Arch also lists it as deprecated). Kept:
+   `scripts/ai/gemini-*.sh` (wallpaper categorizing, UI translation), `KeyringStorage`,
+   `GoogleCloud`, `policies.weeb`. Users' `config.json`/`states.json` keep the old keys; nothing
+   migrates them, and they are ignored.
+4. **Docs (done with each phase).** `panels-ii.md`, `services.md`, `settings-app.md`,
+   `config-and-common.md`, `architecture.md`, `distros.md`, `setup-and-install.md`.
 
 ## Open / unverified
 
 - Focus on `xdg-open` when T3 is on another workspace (expected, given `focus_on_activate`).
 - `t3 app <path>` from the shell (help text matches; not run).
+- The Gemini scripts read `apiKeys.gemini` from the keyring, which only the removed chat's `/key`
+  command wrote. An existing key keeps working; a new one must be stored by hand.
+- Package changes were checked by reading, not by running an install on each distro.
 - Removing the AI code makes upstream (`end-4`) merges conflict in those files. That is accepted
   as a cost of the decision.

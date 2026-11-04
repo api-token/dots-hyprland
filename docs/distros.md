@@ -61,7 +61,7 @@ Outdated native routes print warnings and require an explicit interactive contin
 
 ## Arch: local PKGBUILDs
 
-`sdata/dist-arch/install-deps.sh:42` requires pacman, exports `PACMAN_AUTH=sudo` if unset, offers removal of deprecated packages, and performs `pacman -Syu` unless `SKIP_SYSUPDATE=true`. It bootstraps `yay-bin` in `/tmp/buildyay` when yay is missing. Deprecated dependency removal uses `pacman -Rdd` and is an explicit migration action (`:15`); do not reuse that pattern for ordinary removal.
+`sdata/dist-arch/install-deps.sh:42` requires pacman, exports `PACMAN_AUTH=sudo` if unset, offers removal of deprecated packages, and performs `pacman -Syu` unless `SKIP_SYSUPDATE=true`. It bootstraps `yay-bin` in `/tmp/buildyay` when yay is missing. Deprecated dependency removal uses `pacman -Rdd` and is an explicit migration action (`:15`); do not reuse that pattern for ordinary removal. MicroTeX (`illogical-impulse-microtex-git`) was dropped with the AI chat's LaTeX rendering and is in that list, so the next Arch setup offers to remove it; Gentoo/Fedora/Nix leave an existing install in place.
 
 `implicitize_old_dependencies` strips `previous_dependencies.conf` and marks matching explicitly installed old dependencies as `--asdeps` (`:24`). This permits packages no longer required by II meta-packages to become orphans; the reference file is not the active dependency list.
 
@@ -71,7 +71,6 @@ The hardcoded `metapkgs` array (`:92`) selects these groups:
 | --- | --- |
 | `illogical-impulse-{audio,backlight,basic,fonts-themes,kde,portal,python,screencapture,toolkit,widgets,hyprland}` | Dependency containers: `depends=(...)`; see the basic/hyprland PKGBUILDs for minimal examples |
 | `illogical-impulse-quickshell-git` | Builds a pinned Quickshell revision and declares extra Qt/QML dependencies |
-| `illogical-impulse-microtex-git` | Builds MicroTeX and installs its executable/resources under `/opt/MicroTeX` |
 | `illogical-impulse-bibata-modern-classic-bin` | Downloads/packages Bibata cursor assets |
 
 For each package, `install-local-pkgbuild` sources the PKGBUILD, uses yay to install `depends` as dependencies, then runs `makepkg -Afsi --noconfirm` from that package directory (`sdata/dist-arch/install-deps.sh:74`). Normal installs can leave package build artifacts there; `--clean` only removes root `cache/`. The README asks maintainers not to implement `pkgver()` because it edits Git-tracked PKGBUILDs during builds (`sdata/dist-arch/README.md`).
@@ -94,7 +93,7 @@ Lifecycle (`install-deps.sh:46`):
 4. Read each `[groups.NAME]`, deduplicate `packages`, and install with optional `install_opts` (`:77`). The `illogical-impulse` group receives `--repofrompath=... --nogpgcheck` for the downloaded local repo and contains Quickshell/matugen.
 5. Attempt to restore the Quickshell versionlock (`:96`). `nolock_qs` is referenced here but is not a declared option in the shared install parser.
 
-`feddeps.toml` covers audio/backlight/basic/cursor/fonts/Hyprland/KDE/MicroTeX/portals/Python/Quickshell/screencapture/toolkit/widgets/extras. Names are Fedora-specific: e.g. `qalculate` provides `qalc`, while Fedora's `libqalculate` alone does not (`sdata/deps-info.md`). Selected groups disable weak deps. The Python group includes development packages and Python 3.12; actual Python libraries are installed into the shared uv venv later.
+`feddeps.toml` covers audio/backlight/basic/cursor/fonts/Hyprland/KDE/portals/Python/Quickshell/screencapture/toolkit/widgets/extras. Names are Fedora-specific: e.g. `qalculate` provides `qalc`, while Fedora's `libqalculate` alone does not (`sdata/deps-info.md`). Selected groups disable weak deps. The Python group includes development packages and Python 3.12; actual Python libraries are installed into the shared uv venv later.
 
 The `r` wrapper records before/after DNF transaction IDs into `sdata/dist-fedora/user_data.yaml` (`install-deps.sh:15`). Not every operation is wrapped: upgrade, initial yq installation, COPR enablement, and versionlocks are outside it. The data file is not covered by current `.gitignore`. Uninstall reads recorded transactions in reverse and offers `dnf history undo` (`sdata/dist-fedora/uninstall-deps.sh`); it is not a complete host rollback.
 
@@ -113,7 +112,7 @@ The README documents post-install application overrides for network settings and
 
 Overlay metadata uses EAPI 8, repository name `ii-dots`, masters `gentoo guru`, thin unsigned Manifests (`overlay/{metadata/layout.conf,profiles/eapi,profiles/repo_name}`). `profiles/updates/3Q-2026` records category moves for II packages and Darkly. Keep migrations synchronized with atom changes.
 
-Most II ebuilds are dependency containers using `RDEPEND`; actual cursor/font/theme/MicroTeX/Quickshell ebuilds also fetch/install content. The intended complete set is amd64; individual ebuild keywords vary (`sdata/dist-gentoo/README.md`). Quickshell's `0.1.0-r8` ebuild pins the same commit as current Arch, defines Qt slot/subslot dependencies, optional backend/service USE flags, a strict-aliasing patch, and CMake feature switches. It forces the bfd linker if mold was selected (`overlay/gui-apps/illogical-impulse-quickshell-git/illogical-impulse-quickshell-git-0.1.0-r8.ebuild`). Do not infer it tracks latest upstream merely from `-git` in its name.
+Most II ebuilds are dependency containers using `RDEPEND`; actual cursor/font/theme/Quickshell ebuilds also fetch/install content. The intended complete set is amd64; individual ebuild keywords vary (`sdata/dist-gentoo/README.md`). Quickshell's `0.1.0-r8` ebuild pins the same commit as current Arch, defines Qt slot/subslot dependencies, optional backend/service USE flags, a strict-aliasing patch, and CMake feature switches. It forces the bfd linker if mold was selected (`overlay/gui-apps/illogical-impulse-quickshell-git/illogical-impulse-quickshell-git-0.1.0-r8.ebuild`). Do not infer it tracks latest upstream merely from `-git` in its name.
 
 Gentoo uninstall removes atoms in `metapkgs`, the copied overlay, repos.conf, keyword file, and USE file. **Current gap:** `sdata/dist-gentoo/uninstall-deps.sh` uses `metapkgs` but does not source `metapkgs.sh`; a fresh `setup uninstall` process has not initialized that array. Thus the package-removal loop normally has no entries, although overlay/config cleanup still runs. It also does not depclean automatically. This doc records the gap; it does not fix it.
 

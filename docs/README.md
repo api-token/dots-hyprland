@@ -11,7 +11,7 @@ This checkout is a fork: `origin` = `api-token/dots-hyprland`, upstream = `end-4
 | Installer | `setup`, `sdata/` | Bash dispatcher: per-distro deps, host setup, copies `dots/` into `$HOME`, maintenance subcommands |
 | Diagnostics | `diagnose` | Writes a support report (`diagnose.result`) |
 | Hyprland config | `dots/.config/hypr/` | **Lua** config (Hyprland ≥ 0.55): `hyprland.lua` loads the `hyprland/*` defaults, then the `custom/*` user overrides, then `shellOverrides` |
-| Desktop shell | `dots/.config/quickshell/ii/` | Quickshell/QML shell (~74k lines, most of the project): bar, sidebars, overview, lock, AI chat, settings app… Two "panel families": `ii` (Material You, default) and `waffle` (Windows 11-like) |
+| Desktop shell | `dots/.config/quickshell/ii/` | Quickshell/QML shell (~74k lines, most of the project): bar, sidebars (the left one is a T3 Code navigator), overview, lock, settings app… Two "panel families": `ii` (Material You, default) and `waffle` (Windows 11-like) |
 | Other dotfiles | `dots/.config/*`, `dots/.local/` | matugen templates, kitty/foot, fish/zsh, starship, fuzzel, wlogout, Kvantum/KDE, fontconfig… |
 | Extras | `dots-extra/` | Optional extras that are not installed by default |
 | Repo meta | `.github/`, `licenses/` | README, CONTRIBUTING, issue/PR templates, moderation and notification workflows |
@@ -27,7 +27,7 @@ This checkout is a fork: `origin` = `api-token/dots-hyprland`, upstream = `end-4
 | Wallpaper → Material You colors pipeline, matugen, terminals, GTK/Qt/KDE theming | [dotfiles-and-theming.md](dotfiles-and-theming.md) |
 | Shell big picture: entry points, panel families, imports, **IPC/GlobalShortcut table**, translations, adding a panel, debugging | [quickshell/architecture.md](quickshell/architecture.md) |
 | `Config.qml` (adding a config option), `Appearance`, `Directories`, `Persistent`, the widget library | [quickshell/config-and-common.md](quickshell/config-and-common.md) |
-| System-integration singletons (audio, network, Hyprland data, notifications, AI, wallpapers, weather…) | [quickshell/services.md](quickshell/services.md) |
+| System-integration singletons (audio, network, Hyprland data, notifications, T3 Code, wallpapers, weather…) | [quickshell/services.md](quickshell/services.md) |
 | Material panels: bar, sidebars, quick toggles, overview, OSD, lock, dock… | [quickshell/panels-ii.md](quickshell/panels-ii.md) |
 | Windows 11-style panels: taskbar, start menu, action center… | [quickshell/panels-waffle.md](quickshell/panels-waffle.md) |
 | Settings app pages; exposing a config option in the UI | [quickshell/settings-app.md](quickshell/settings-app.md) |
