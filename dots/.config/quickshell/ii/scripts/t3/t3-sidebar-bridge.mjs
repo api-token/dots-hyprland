@@ -25,6 +25,8 @@ const runtimeFile = arg("runtime-file", path.join(home, ".t3/userdata/server-run
 const PROTOCOL = "2";
 const PING_MS = 20_000;
 
+// Exit quietly when the reader (Quickshell) goes away.
+process.stdout.on("error", () => process.exit(0));
 const emit = (obj) => process.stdout.write(JSON.stringify(obj) + "\n");
 let lastState = "";
 const state = (online, error = null, environmentId = null) => {
