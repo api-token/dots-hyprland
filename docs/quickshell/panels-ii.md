@@ -56,7 +56,7 @@ Each panel exposes three ways to drive it, all just flipping a `GlobalStates` fl
 | onScreenKeyboard | `oskOpen` | `osk`: toggle/open/close | `oskToggle/Open/Close` | Super+K |
 | overlay | `overlayOpen` | `overlay`: toggle | `overlayToggle` | Super+G |
 | overview (+ search) | `overviewOpen` | `search`: toggle, workspacesToggle, open, close, toggleReleaseInterrupt, clipboardToggle, … | `searchToggle`, `searchToggleRelease`, `searchToggleReleaseInterrupt`, `overviewWorkspacesToggle`, `overviewWorkspacesClose`, `overviewClipboardToggle`, `overviewEmojiToggle` | Super (tap) → `searchToggleRelease`; Super+Tab; Super+V; Super+.; 4-finger swipe up/down (`general.lua:23-36`) |
-| regionSelector | `regionSelectorOpen` | `region`: screenshot, search, ocr, record, recordWithSound | `regionScreenshot`, `regionSearch`, `regionOcr`, `regionRecord`, `regionRecordWithSound` | Super+Shift+S/A/X/R, Super+Alt+R |
+| regionSelector | `regionSelectorOpen` | `region`: screenshot, search, ocr, record, recordWithSound | `regionScreenshot`, `regionSearch`, `regionOcr`, `regionRecord`, `regionRecordWithSound` | Super+Shift+S/A/X; Super+Shift+R and Super+Alt+R both → `regionRecord`; `regionRecordWithSound` unbound |
 | screenTranslator | `screenTranslatorOpen` | `screenTranslator`: translate | `screenTranslate` | Super+Shift+T |
 | sessionScreen | `sessionOpen` | `session`: toggle/open/close | `sessionToggle/Open/Close` | Ctrl+Alt+Delete |
 | sidebarLeft | `sidebarLeftOpen` | `sidebarLeft`: toggle/open/close | `sidebarLeftToggle/Open/Close`, `sidebarLeftToggleDetach` | Super+A/B/O, Super+Alt+A (detach) |
@@ -107,8 +107,8 @@ Scope {
 
 Variants seen in the codebase:
 - **Window always exists, content lazily loaded**: sidebarRight (content `Loader` active when open
-  *or* `Config.options.sidebar.keepRightSidebarLoaded`, default true → state like dialogs survives
-  closing), overview (`Loader` for `OverviewWidget`).
+  *or* `Config.options.sidebar.keepRightSidebarLoaded`, default true → component state survives
+  closing, though Wi-Fi/Bluetooth/audio-output/audio-input dialogs are explicitly reset on close), overview (`Loader` for `OverviewWidget`).
 - **Whole window inside a `Loader`/`LazyLoader`** gated on the flag: cheatsheet, mediaControls,
   OSD, OSK, overlay, sessionScreen, wallpaperSelector, screenTranslator. Window is destroyed on close.
 - **Per-monitor via `Variants { model: Quickshell.screens }`**: background, bar/verticalBar
@@ -368,7 +368,8 @@ Right drawer (control center). Content column:
   `volumeMixer/`), `BluetoothDialog` (enables adapter + discovery while shown), `NightLightDialog`
   (`Hyprsunset`, `light.night.*`, `light.antiFlashbang.enable`), `WifiDialog` (`Network.rescanWifi()`).
   Implemented with the inline `ToggleDialog` Loader keyed by a `root.show*Dialog` property name.
-  Dialogs reset when the sidebar closes.
+  Wi-Fi, Bluetooth, audio-output and audio-input dialogs reset when the sidebar closes
+  (`SidebarRightContent.qml:32-40`); `showNightLightDialog` is not reset.
 
 #### Quick toggles
 Two implementations share a signal interface (`quickToggles/AbstractQuickPanel.qml`:

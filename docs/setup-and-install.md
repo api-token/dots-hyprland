@@ -124,6 +124,7 @@ Source of truth: `sdata/subcmd-install/3.files-legacy.sh`.
 | Existing `hypr/hyprland.conf` (`:51`) | Renamed to `.conf.old` to let the Lua entry load |
 | `hypr/hyprland.lua` (`:58`) | Overwritten unless `--skip-hyprland-entry`; it is not first-run-only |
 | `hypr/hyprlock.conf`, `hypr/hypridle.conf` (`:55`, `:64`) | Auto-backup file policy below; Nix substitutes its extra hypridle config |
+| `hypr/hyprlock/` | **Not copied** by the legacy list, although `hyprlock.conf` references its scripts; only Matugen regenerates `colors.conf` there |
 | `hypr/custom/` (`:75`) | If directory exists, skipped entirely; otherwise copied |
 | II SVG under data `icons/` (`:79`) | File overwrite; installed outside the miscellaneous skip block |
 
@@ -225,7 +226,7 @@ After generation, if curl exists, it offers an explicit opt-in upload to public 
 2. Create sourced `0.run.sh`, using shared library context and `v`/`x` for interactive installer operations. No shebang/executable bit is needed for sourced files.
 3. Add `NAME` to `setup:52` and global help. The generic branch then loads `0.run.sh`. A command with multiple stages needs explicit dispatch, like install; numbered filenames alone do nothing.
 4. Check traps/global variable names for collisions. Keep user shell examples Fish-compatible by invoking `./setup NAME`; implementation remains Bash.
-5. Review without executing stages: `bash -n setup sdata/subcmd-NAME/options.sh sdata/subcmd-NAME/0.run.sh` from this checkout. Use disposable environments for behavior that changes the host.
+5. Review without executing stages: run `bash -n FILE` separately for `setup`, `sdata/subcmd-NAME/options.sh` and `sdata/subcmd-NAME/0.run.sh` (extra arguments to one `bash -n` are treated as script args, not checked). Use disposable environments for behavior that changes the host.
 
 ### Add a dependency
 

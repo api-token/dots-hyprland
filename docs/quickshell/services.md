@@ -175,7 +175,7 @@ The standalone AI scripts are separate consumers of the same stored Gemini key: 
 
 `S/Notifications.qml:150` owns the Quickshell NotificationServer with actions, markup, images, hyperlinks and persistence support; `keepOnReload: false`. Every received notification is tracked and wrapped in a `Notif` QObject with app/body/image/action/time/urgency data. The wrapper retains a live server object for actions and dismissals.
 
-History `list` and popup visibility are separate. `popupList` filters `popup=true`; grouping maps and app-name lists sort by each application's latest notification timestamp (`:96`). `popupInhibited` is ii sidebar-right-open OR `silent`. Receipt always appends/persists/emits notify; only uninhibited receipt marks popup and increments unread (`:162`). Waffle notification-center visibility is not part of that expression.
+History `list` and popup visibility are separate. `popupList` filters `popup=true`; grouping maps and app-name lists sort by each application's latest notification timestamp (`:96`). `popupInhibited` is `GlobalStates.sidebarRightOpen` OR `silent` (`:81`). Receipt always appends/persists/emits notify; only uninhibited receipt marks popup and increments unread (`:162`). `sidebarRightOpen` is shared, so waffle's notification center (`WaffleNotificationCenter.qml`) inhibits popups too.
 
 For nonzero expireTimeout, a per-notification Timer removes transient notifications entirely or just hides normal popups. Negative timeout uses `notifications.timeout` (fallback 7000 ms); zero creates no timer (`:61`, `:174`). Discard removes history, saves JSON, dismisses the live server object and emits a signal. Timeout hides the popup without dropping history. `markAllRead()` only resets unread.
 

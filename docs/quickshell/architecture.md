@@ -60,7 +60,7 @@ Separate `qs -p` instances load the same singletons (`Config`, `Translation`, `A
 
 - Side effect: opening the right sidebar calls `Notifications.timeoutAll()` + `markAllRead()` (`GlobalStates.qml:33`).
 - Owns the `workspaceNumber` GlobalShortcut (press/release sets `superDown`; bound to bare `SUPER_L/R` in `keybinds.lua:17-21`).
-- Convention: panels bind visibility/loader `active` to a flag here; IPC handlers/shortcuts flip the flag. Some panels instead keep a local `Loader.active` (e.g. `modules/ii/cheatsheet/Cheatsheet.qml` uses `cheatsheetLoader.active`). State not in GlobalStates is not reachable across panels.
+- Convention: panels bind visibility/loader `active` to a flag here; IPC handlers/shortcuts flip the flag. Some panels instead keep a local `Loader.active` (e.g. `modules/ii/cheatsheet/Cheatsheet.qml` uses `cheatsheetLoader.active`). Panel-local context singletons (e.g. `modules/ii/overlay/OverlayContext.qml`, `modules/waffle/actionCenter/ActionCenterContext.qml`) also share state with anything that imports their directory.
 - Not persisted. Persisted state lives in `Persistent.states` (`~/.local/state/quickshell/states.json`), user options in `Config.options`.
 
 ## Panel families
@@ -84,7 +84,7 @@ A "panel family" is a complete set of top-level panels. Exactly one is active, c
 ## Imports, singletons, qmldir
 
 - There are **no `qmldir` files** in the tree. Quickshell exposes the config root as the module `qs`, and every subdirectory as a dotted module: `import qs` (root: `GlobalStates`, `ReloadPopup`), `import qs.services`, `import qs.modules.common`, `import qs.modules.common.widgets`, `import qs.modules.common.functions`, `import qs.modules.ii.bar`, etc. Every `.qml` in a directory is a type named after the file (PascalCase file names required).
-- A file becomes a singleton with `pragma Singleton` and a `Singleton { }` root (Quickshell type). Singletons: `GlobalStates`, `modules/common/{Config,Appearance,Directories,Persistent,Icons,Images}.qml`, all of `modules/common/functions/*.qml`, `modules/common/utils/ScreenshotAction.qml`, every `services/*.qml` except `BooruResponseData.qml`, and `modules/waffle/looks/{Looks,WIcons}.qml`.
+- A file becomes a singleton with `pragma Singleton` and a `Singleton { }` root (Quickshell type). Singletons: `GlobalStates`, `modules/common/{Config,Appearance,Directories,Persistent,Icons,Images}.qml`, all of `modules/common/functions/*.qml`, `modules/common/utils/ScreenshotAction.qml`, every `services/*.qml` except `BooruResponseData.qml`, and `modules/waffle/looks/{Looks,WIcons}.qml`, plus panel-local helpers/contexts (e.g. `modules/ii/overlay/OverlayContext.qml`, `modules/ii/regionSelector/RegionFunctions.qml`, `modules/waffle/actionCenter/ActionCenterContext.qml`). This list is representative: `rg -l '^pragma Singleton'` gives the full set.
 - Everything else is an instantiable component (panels, widgets, models).
 - `shell.qml` uses legacy relative imports (`import "modules/common"`, `import "services"`, `import "panelFamilies"`); all other files use `qs.*`. Use `qs.*` in new code.
 - Aliased import used where names collide: `import qs.modules.common.functions as CF` (`settings.qml:17`).
@@ -111,7 +111,7 @@ Handlers only exist while the declaring component is loaded, so most targets are
 | `cliphistService` | `update()` | `services/Cliphist.qml:150` (called from `wl-paste --watch` in `execs.lua:20-21`) |
 | `lock` | `activate()`, `focus()` | `modules/common/panels/lock/LockScreen.qml:103` (both, via `Lock`/`WaffleLock`) |
 | `bar` | `toggle()`, `close()`, `open()` | ii: `modules/ii/bar/Bar.qml:218`, `modules/ii/verticalBar/VerticalBar.qml:212`; waffle: `modules/waffle/bar/WaffleBar.qml:46` |
-| `search` | `toggle()`, `workspacesToggle()`, `close()`, `open()`, `toggleReleaseInterrupt()`, `clipboardToggle()` | ii: `modules/ii/overview/Overview.qml:126`; waffle: `modules/waffle/taskView/WaffleTaskView.qml:79` **and** `modules/waffle/startMenu/WaffleStartMenu.qml:86` (no `workspacesToggle`/`clipboardToggle`) |
+| `search` | `toggle()`, `workspacesToggle()`, `close()`, `open()`, `toggleReleaseInterrupt()`, `clipboardToggle()` | ii: `modules/ii/overview/Overview.qml:126`; waffle: `modules/waffle/taskView/WaffleTaskView.qml:79` (has `workspacesToggle`/`clipboardToggle`) **and** `modules/waffle/startMenu/WaffleStartMenu.qml:86` (lacks them) |
 | `sidebarLeft` | `toggle()`, `close()`, `open()` (waffle: `toggle()` only) | ii: `modules/ii/sidebarLeft/SidebarLeft.qml:203`; waffle: `modules/waffle/actionCenter/WaffleActionCenter.qml:73` |
 | `sidebarRight` | `toggle()`, `close()`, `open()` (waffle: `toggle()`) | ii: `modules/ii/sidebarRight/SidebarRight.qml:70`; waffle: `modules/waffle/notificationCenter/WaffleNotificationCenter.qml:71` |
 | `mediaControls` | `toggle()`, `close()`, `open()` (waffle: `toggle()`) | ii: `modules/ii/mediaControls/MediaControls.qml:191`; waffle: `WaffleActionCenter.qml:88` |
@@ -147,7 +147,7 @@ Hyprland also calls `qs -c $qsConfig ipc call brightness increment|decrement` (`
 | `mediaControlsToggle` | ii `MediaControls.qml:210`; waffle `WaffleActionCenter.qml:96` | `SUPER+M` |
 | `mediaControlsOpen`, `mediaControlsClose` | ii `MediaControls.qml:218,226` | no |
 | `sessionToggle`, `sessionOpen`, `sessionClose` | ii `SessionScreen.qml:312-330`; waffle `WaffleSessionScreen.qml:89-107` | `sessionToggle`: `CTRL+ALT+Delete` |
-| `regionScreenshot`, `regionSearch`, `regionOcr`, `regionRecord`, `regionRecordWithSound` | ii `RegionSelector.qml:93-113`; waffle `WScreenSnip.qml:81-101` | `SUPER+SHIFT+S/A/X/R`, `SUPER+ALT+R` |
+| `regionScreenshot`, `regionSearch`, `regionOcr`, `regionRecord`, `regionRecordWithSound` | ii `RegionSelector.qml:93-113`; waffle `WScreenSnip.qml:81-101` | `SUPER+SHIFT+S/A/X`; both `SUPER+SHIFT+R` and `SUPER+ALT+R` → `regionRecord` (`keybinds.lua:86,89`); `regionRecordWithSound` has no default bind |
 | `osdVolumeTrigger`, `osdVolumeHide` | ii `OnScreenDisplay.qml:221,229` | no |
 | `osdTrigger` | waffle `WaffleOSD.qml:153` | no |
 | `cheatsheetToggle`, `cheatsheetOpen`, `cheatsheetClose` | `Cheatsheet.qml:197-215` | `SUPER+Slash` |
@@ -259,7 +259,7 @@ A new **module inside an existing panel** (e.g. a bar widget) is just a componen
 ## Gotchas
 
 - Everything gated on `Config.ready`: panels do not exist until `config.json` loads. A JSON syntax error in the user config leaves `ready` false (unverified: FileView behaviour on parse error) → empty desktop.
-- In the waffle family two components (`WaffleTaskView`, `WaffleStartMenu`) both declare `IpcHandler { target: "search" }` and `GlobalShortcut` names overlap between `searchToggle*`/`overview*` handlers. Which handler receives an IPC call is unverified.
+- In the waffle family two components (`WaffleTaskView`, `WaffleStartMenu`) both declare `IpcHandler { target: "search" }` (overlapping IPC target/methods; their GlobalShortcut names are distinct). Which handler receives an IPC call is unverified.
 - `ii`-only shortcuts (`sidebarLeftOpen`, `overviewWorkspacesClose`, `osdVolume*`, ...) silently do nothing under waffle.
 - `bar` target is defined by both `Bar` and `VerticalBar`, but only one is loaded at a time (`bar.vertical`).
 - `qsConfig` env var (`variables.lua:5`) is the config folder name used by Hyprland binds/execs; QML code never hardcodes the folder and resolves its own files with `Quickshell.shellPath(...)`. The fish alias `q` and `modules/waffle/README.md` hardcode `ii`. Renaming the folder means changing `qsConfig` and those.

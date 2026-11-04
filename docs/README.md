@@ -49,7 +49,7 @@ This checkout is a fork: `origin` = `api-token/dots-hyprland`, upstream = `end-4
 - **Shell → Hyprland:** QML dispatches use the Lua form, e.g. `Hyprland.dispatch("hl.dsp.focus({workspace = N})")`. The shell writes its own Hyprland settings to Lua override files (`hyprland/shellOverrides`). The cheatsheet reads binds from `hyprctl binds -j`.
 - **Layer namespaces ↔ rules:** panels use `quickshell:<name>` layer namespaces, and `dots/.config/hypr/hyprland/rules.lua` matches on them. If you rename a namespace, its blur/animation rules silently stop applying.
 - **Theming:** a wallpaper change runs `scripts/colors/switchwall.sh` → matugen → JSON/templates under `~/.local/state/quickshell/user/generated/`. The QML shell watches the JSON. Terminals get a separate Python-generated palette. See [dotfiles-and-theming.md](dotfiles-and-theming.md).
-- **Settings app ↔ shell:** `settings.qml` runs as a separate `qs -p` process. The two share state only through `config.json`, which the main shell watches.
+- **Settings app ↔ shell:** `settings.qml` runs as a separate `qs -p` process. `Config.options` syncs between the two through `config.json` (both watch it); both also read the generated theme files independently.
 
 ## Conventions
 
@@ -70,7 +70,7 @@ This checkout is a fork: `origin` = `api-token/dots-hyprland`, upstream = `end-4
 - **Unverified (duplicate `search` target):** in waffle, both `WaffleTaskView.qml` and `WaffleStartMenu.qml` declare the `search` IPC target.
 - **Stale translation-tool paths:** `translations/tools/` docs and defaults point to `.config/quickshell/translations`. Only `manage-translations.sh` resolves paths correctly.
 - **No config migration:** nothing migrates renamed or removed `Config.options` keys.
-- **Installer:** the legacy (default) install replaces the whole Quickshell config dir, and the experimental YAML install doesn't record files for uninstall.
+- **Installer:** the legacy (default) install replaces the whole Quickshell config dir, and the experimental YAML install doesn't record files for uninstall. The legacy install also never copies `hypr/hyprlock/` (Hyprlock fallback helper scripts).
 
 ## Maintaining these docs
 

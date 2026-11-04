@@ -169,8 +169,9 @@ Qt is directed toward the KDE platform theme by `dots/.config/hypr/hyprland/env.
 
 1. Find its active mapping in `dots/.config/matugen/config.toml`; edit the corresponding template, not the installed output or repository's sample generated colors.
 2. Preserve consumer syntax: stripped hex + alpha for Hyprland/Fuzzel, `#hex` for GTK/JSON, dollar-prefixed variables in Hyprlock.
-3. In a configured desktop, recolor the current wallpaper with `~/.config/quickshell/ii/scripts/colors/switchwall.sh --noswitch`. This writes multiple application configs and may launch wallpaper processing; it is not a pure template check. Do not run it during documentation-only work.
-4. Inspect generated files first, then confirm the relevant consumer refreshed. QML watches its JSON; Kitty is explicitly signaled; compositor/GTK/KDE reload timing must be checked in the target session.
+3. Deploy the edited template (and `config.toml` if changed) to `~/.config/matugen/`; the installer copies rather than symlinks, and Matugen reads the installed templates.
+4. In a configured desktop, recolor the current wallpaper with `~/.config/quickshell/ii/scripts/colors/switchwall.sh --noswitch`. This writes multiple application configs and may launch wallpaper processing; it is not a pure template check. Do not run it during documentation-only work.
+5. Inspect generated files first, then confirm the relevant consumer refreshed. QML watches its JSON; Kitty is explicitly signaled; compositor/GTK/KDE reload timing must be checked in the target session.
 
 ### Add a newly themed application
 
