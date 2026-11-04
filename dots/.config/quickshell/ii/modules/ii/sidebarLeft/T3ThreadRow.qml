@@ -17,7 +17,7 @@ RippleButton {
     colRipple: Appearance.colors.colLayer1Active
 
     onClicked: {
-        T3.openThread(root.thread.threadId);
+        T3.openThread(root.thread);
         root.opened();
     }
 
@@ -80,7 +80,7 @@ RippleButton {
             }
             StyledText {
                 Layout.fillWidth: true
-                text: [T3.projectName(root.thread.projectId), root.statusInfo[2]].filter(s => s).join(" · ")
+                text: [T3.machineLabel(root.thread.machine), T3.projectName(root.thread.machine, root.thread.projectId), root.statusInfo[2]].filter(s => s).join(" · ")
                 textFormat: Text.PlainText
                 elide: Text.ElideRight
                 font.pixelSize: Appearance.font.pixelSize.smaller

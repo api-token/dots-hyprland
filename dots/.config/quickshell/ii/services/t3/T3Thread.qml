@@ -5,6 +5,8 @@ import QtQuick
 QtObject {
     required property var data
     readonly property string threadId: data.id
+    // "local", or the remote's URL from sidebar.t3.remotes
+    readonly property string machine: data.machine ?? "local"
     readonly property string projectId: data.projectId ?? ""
     readonly property string title: data.title ?? ""
     // approval | input | request | waiting | working | limited | failed | ready

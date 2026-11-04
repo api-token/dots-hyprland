@@ -474,6 +474,9 @@ Singleton {
                 property bool keepRightSidebarLoaded: true
                 property JsonObject t3: JsonObject {
                     property string tokenFile: "" // Empty: ~/.config/illogical-impulse/t3-token
+                    // Other machines' T3 servers: [{ "url": "http://host:3773", "tokenFile": "" }].
+                    // An empty tokenFile means ~/.config/illogical-impulse/t3-token-<host>.
+                    property list<var> remotes: []
                 }
                 property JsonObject cornerOpen: JsonObject {
                     property bool enable: true

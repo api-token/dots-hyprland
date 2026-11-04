@@ -2,12 +2,13 @@
 // Bridges T3 Code's shell feed to the ii left sidebar as NDJSON on stdout.
 // Plan and wire notes: docs/quickshell/t3-sidebar.md. Node >= 22 (built-in WebSocket).
 //
-// Output lines:
-//   {"type":"state","online":bool,"error":null|"no-token"|"unauthorized"|"offline"|"protocol"|string,"environmentId"}
-//   {"type":"snapshot","projects":[Project],"threads":[Thread]}   replaces everything
-//   {"type":"projects","projects":[Project]}                       replaces projects only
-//   {"type":"project","project":Project} | {"type":"thread","thread":Thread}
-//   {"type":"removed","kind":"project"|"thread","id"}
+// Connects to the local T3 server and to every remote in --remotes, each with its own reconnect loop.
+// Every line carries "machine": "local" for this machine, or the remote's URL.
+//   {"type":"state","machine","online":bool,"error":null|"no-token"|"unauthorized"|"offline"|"protocol"|string,"environmentId","label"}
+//   {"type":"snapshot","machine","projects":[Project],"threads":[Thread]}   replaces that machine's data
+//   {"type":"projects","machine","projects":[Project]}                       updates those projects only
+//   {"type":"project","machine","project":Project} | {"type":"thread","machine","thread":Thread}
+//   {"type":"removed","machine","kind":"project"|"thread","id"}
 //
 // The feed is T3's internal API and changes often, so read only the fields used below.
 
@@ -22,19 +23,19 @@ const arg = (name, fallback) => {
 };
 const tokenFile = arg("token-file", path.join(home, ".config/illogical-impulse/t3-token"));
 const runtimeFile = arg("runtime-file", path.join(home, ".t3/userdata/server-runtime.json"));
+// JSON list of {"url": "http://host:3773", "tokenFile": "/path"}.
+let remotes = [];
+try {
+    remotes = JSON.parse(arg("remotes", "[]"));
+} catch {
+    process.stderr.write("t3-bridge: --remotes is not valid JSON; ignoring it\n");
+}
 const PROTOCOL = "2";
 const PING_MS = 20_000;
 
 // Exit quietly when the reader (Quickshell) goes away.
 process.stdout.on("error", () => process.exit(0));
 const emit = (obj) => process.stdout.write(JSON.stringify(obj) + "\n");
-let lastState = "";
-const state = (online, error = null, environmentId = null) => {
-    const key = `${online}|${error}|${environmentId}`;
-    if (key === lastState) return;
-    lastState = key;
-    emit({ type: "state", online, error, environmentId });
-};
 
 const project = (p) => ({ id: p.id, name: p.title ?? p.name ?? "", root: p.workspaceRoot ?? null });
 
@@ -73,7 +74,8 @@ const thread = (t) => ({
     activeOrderKey: t.activeOrderKey ?? null,
 });
 
-function readRuntime() {
+// The local origin comes from the desktop app's runtime file, so it follows port changes.
+function localOrigin() {
     let rt;
     try {
         rt = JSON.parse(fs.readFileSync(runtimeFile, "utf8"));
@@ -86,52 +88,60 @@ function readRuntime() {
     } catch (e) {
         if (e.code === "ESRCH") return null;
     }
-    return rt;
+    return `http://${rt.host}:${rt.port}`;
 }
 
-function readToken() {
+function readToken(file) {
     try {
-        return fs.readFileSync(tokenFile, "utf8").trim() || null;
+        return fs.readFileSync(file, "utf8").trim() || null;
     } catch {
         return null;
     }
 }
 
-function handleItem(item) {
+function handleItem(machine, item) {
+    const out = (obj) => emit({ machine, ...obj });
     switch (item.kind) {
         case "snapshot": {
             const s = item.snapshot;
             const projects = (s.projects ?? []).map(project);
             // Project-metadata refreshes arrive as snapshots with no threads.
             if (item.resolvedRepositoryIdentityRoots && !s.threads?.length && !s.archivedThreads?.length)
-                return emit({ type: "projects", projects });
-            return emit({ type: "snapshot", projects, threads: (s.threads ?? []).filter(listed).map(thread) });
+                return out({ type: "projects", projects });
+            return out({ type: "snapshot", projects, threads: (s.threads ?? []).filter(listed).map(thread) });
         }
         case "project.updated":
-            return emit({ type: "project", project: project(item.project) });
+            return out({ type: "project", project: project(item.project) });
         case "project.removed":
-            return emit({ type: "removed", kind: "project", id: item.projectId });
+            return out({ type: "removed", kind: "project", id: item.projectId });
         case "thread.updated":
             if (item.location === "active" && listed(item.thread))
-                return emit({ type: "thread", thread: thread(item.thread) });
-            return emit({ type: "removed", kind: "thread", id: item.thread.id });
+                return out({ type: "thread", thread: thread(item.thread) });
+            return out({ type: "removed", kind: "thread", id: item.thread.id });
         case "thread.removed":
-            return emit({ type: "removed", kind: "thread", id: item.threadId });
+            return out({ type: "removed", kind: "thread", id: item.threadId });
         // "synchronized" and unknown kinds are ignored.
     }
 }
 
-async function connect() {
-    const token = readToken();
-    if (!token) return state(false, "no-token");
-    const rt = readRuntime();
-    if (!rt) return state(false, "offline");
-    const origin = `http://${rt.host}:${rt.port}`;
+// One connection attempt; resolves when it ends. `m` is {key, origin(), tokenFile, label, lastState}.
+async function connect(m) {
+    const state = (online, error = null) => {
+        const key = `${online}|${error}|${m.environmentId}|${m.label}`;
+        if (key === m.lastState) return;
+        m.lastState = key;
+        emit({ type: "state", machine: m.key, online, error, environmentId: m.environmentId, label: m.label });
+    };
 
-    let environmentId = null;
+    const token = readToken(m.tokenFile);
+    if (!token) return state(false, "no-token");
+    const origin = m.origin();
+    if (!origin) return state(false, "offline");
+
     try {
-        const env = await (await fetch(`${origin}/.well-known/t3/environment`)).json();
-        environmentId = env.environmentId ?? null;
+        const env = await (await fetch(`${origin}/.well-known/t3/environment`, { signal: AbortSignal.timeout(10_000) })).json();
+        m.environmentId = env.environmentId ?? null;
+        m.label = env.label || m.label;
         if (env.orchestrationProtocolVersion && String(env.orchestrationProtocolVersion) !== PROTOCOL)
             return state(false, "protocol");
     } catch {
@@ -143,6 +153,7 @@ async function connect() {
         const r = await fetch(`${origin}/api/auth/websocket-ticket`, {
             method: "POST",
             headers: { Authorization: `Bearer ${token}`, "x-t3-orchestration-protocol": PROTOCOL },
+            signal: AbortSignal.timeout(10_000),
         });
         if (r.status === 401 || r.status === 403) return state(false, "unauthorized");
         if (!r.ok) return state(false, `ticket ${r.status}`);
@@ -151,10 +162,11 @@ async function connect() {
         return state(false, "offline");
     }
 
-    const url = `ws://${rt.host}:${rt.port}/ws?orchestrationProtocol=${PROTOCOL}&wsTicket=${encodeURIComponent(ticket)}`;
+    const wsOrigin = origin.replace(/^http/, "ws");
+    const url = `${wsOrigin}/ws?orchestrationProtocol=${PROTOCOL}&wsTicket=${encodeURIComponent(ticket)}`;
     await new Promise((resolve) => {
         const ws = new WebSocket(url);
-        const send = (m) => ws.readyState === WebSocket.OPEN && ws.send(JSON.stringify(m));
+        const send = (msg) => ws.readyState === WebSocket.OPEN && ws.send(JSON.stringify(msg));
         let awaitingPong = false;
         const pinger = setInterval(() => {
             if (awaitingPong) return ws.close(4000, "pong timeout");
@@ -165,26 +177,26 @@ async function connect() {
         ws.onopen = () =>
             send({ _tag: "Request", id: "1", tag: "orchestration.subscribeShell", payload: {}, headers: [] });
         ws.onmessage = (ev) => {
-            let m;
+            let msg;
             try {
-                m = JSON.parse(typeof ev.data === "string" ? ev.data : Buffer.from(ev.data).toString());
+                msg = JSON.parse(typeof ev.data === "string" ? ev.data : Buffer.from(ev.data).toString());
             } catch {
                 return;
             }
-            switch (m._tag) {
+            switch (msg._tag) {
                 case "Pong":
                     awaitingPong = false;
                     return;
                 case "Chunk":
                     // Ack first or the server stops sending.
-                    send({ _tag: "Ack", requestId: m.requestId });
-                    state(true, null, environmentId);
-                    for (const v of m.values ?? []) handleItem(v);
+                    send({ _tag: "Ack", requestId: msg.requestId });
+                    state(true);
+                    for (const v of msg.values ?? []) handleItem(m.key, v);
                     return;
                 case "Exit":
                 case "Defect":
                     // The feed never ends on its own; treat it as a drop.
-                    process.stderr.write(`t3-bridge: ${m._tag} ${JSON.stringify(m).slice(0, 500)}\n`);
+                    process.stderr.write(`t3-bridge: ${m.label}: ${msg._tag} ${JSON.stringify(msg).slice(0, 500)}\n`);
                     return ws.close();
             }
         };
@@ -197,11 +209,28 @@ async function connect() {
     state(false, "offline");
 }
 
-let delay = 1000;
-for (;;) {
-    const before = Date.now();
-    await connect();
-    // A connection that lasted a while resets the backoff.
-    delay = Date.now() - before > 30_000 ? 1000 : Math.min(delay * 2, 30_000);
-    await new Promise((r) => setTimeout(r, delay));
+async function run(m) {
+    let delay = 1000;
+    for (;;) {
+        const before = Date.now();
+        await connect(m);
+        // A connection that lasted a while resets the backoff.
+        delay = Date.now() - before > 30_000 ? 1000 : Math.min(delay * 2, 30_000);
+        await new Promise((r) => setTimeout(r, delay));
+    }
+}
+
+const machines = [{ key: "local", origin: localOrigin, tokenFile, label: os.hostname() }];
+for (const r of Array.isArray(remotes) ? remotes : []) {
+    if (!r?.url || !r?.tokenFile) {
+        process.stderr.write(`t3-bridge: remote needs url and tokenFile: ${JSON.stringify(r)}\n`);
+        continue;
+    }
+    const origin = r.url.replace(/\/+$/, "");
+    machines.push({ key: r.url, origin: () => origin, tokenFile: r.tokenFile, label: new URL(origin).hostname });
+}
+for (const m of machines) {
+    m.environmentId = null;
+    m.lastState = "";
+    run(m);
 }

@@ -19,12 +19,13 @@ Item {
     readonly property int settledLimit: 30
     readonly property bool hasOpenThreads: T3.pinnedThreads.length + T3.activeThreads.length + T3.workingThreads.length + T3.snoozedThreads.length > 0
 
-    // Projects, most recently active first, for the "new thread" picker.
+    // This machine's projects, most recently active first, for the "new thread" picker.
+    // Remote projects are left out: `t3 app <root>` opens a local path.
     readonly property var recentProjects: {
         const latest = {};
-        for (const t of T3.threads)
+        for (const t of T3.threads.filter(t => t.machine === "local"))
             latest[t.projectId] = Math.max(latest[t.projectId] ?? 0, t.updatedAt);
-        return Object.values(T3.projects).sort((a, b) => (latest[b.id] ?? 0) - (latest[a.id] ?? 0));
+        return Object.values(T3.projects.local ?? {}).sort((a, b) => (latest[b.id] ?? 0) - (latest[a.id] ?? 0));
     }
 
     function afterHandoff() {
@@ -215,6 +216,51 @@ Item {
                         Layout.fillWidth: true
                         visible: !root.pickingProject
                         spacing: 2
+
+                        // Remote machines that aren't connected; their threads are hidden meanwhile.
+                        Repeater {
+                            model: ScriptModel {
+                                values: T3.remoteProblems
+                            }
+                            delegate: RowLayout {
+                                id: notice
+                                required property var modelData
+                                readonly property bool needsToken: modelData.error === "no-token" || modelData.error === "unauthorized"
+                                Layout.fillWidth: true
+                                Layout.leftMargin: 12
+                                Layout.rightMargin: 4
+                                spacing: 8
+                                MaterialSymbol {
+                                    text: notice.needsToken ? "key" : "cloud_off"
+                                    iconSize: Appearance.font.pixelSize.normal
+                                    color: Appearance.colors.colSubtext
+                                }
+                                StyledText {
+                                    Layout.fillWidth: true
+                                    elide: Text.ElideRight
+                                    textFormat: Text.PlainText
+                                    font.pixelSize: Appearance.font.pixelSize.smaller
+                                    color: Appearance.colors.colSubtext
+                                    text: `${notice.modelData.label || notice.modelData.host}: ` + (({
+                                                "starting": Translation.tr("connecting…"),
+                                                "offline": Translation.tr("unreachable"),
+                                                "no-token": Translation.tr("no token"),
+                                                "unauthorized": Translation.tr("token rejected"),
+                                                "protocol": Translation.tr("unsupported T3 version")
+                                            })[notice.modelData.error] ?? notice.modelData.error)
+                                }
+                                IconToolbarButton {
+                                    visible: notice.needsToken
+                                    Layout.fillHeight: false
+                                    implicitHeight: 28
+                                    text: "content_copy"
+                                    onClicked: Quickshell.clipboardText = notice.modelData.command
+                                    StyledToolTip {
+                                        text: Translation.tr("Copy the command that creates a token (runs ssh)")
+                                    }
+                                }
+                            }
+                        }
 
                         ThreadSection {
                             title: Translation.tr("Pinned")
