@@ -32,16 +32,21 @@ Singleton {
     // Ticks for relative times.
     property real now: Date.now()
 
+    // Sections match T3's sidebar: unpinned active threads split into Waiting (on you) and Working.
     function sorted(section) {
         root.revision; // dependency
-        return root.threads.filter(t => t.section === section).sort((a, b) => {
+        const inSection = section === "working" ? t => t.section === "active" && t.isWorking
+            : section === "active" ? t => t.section === "active" && !t.isWorking
+            : t => t.section === section;
+        return root.threads.filter(inSection).sort((a, b) => {
             if (a.orderKey && b.orderKey && a.orderKey !== b.orderKey)
                 return a.orderKey < b.orderKey ? -1 : 1;
             return b.updatedAt - a.updatedAt;
         });
     }
     readonly property var pinnedThreads: sorted("pinned")
-    readonly property var activeThreads: sorted("active")
+    readonly property var activeThreads: sorted("active") // shown as "Waiting"
+    readonly property var workingThreads: sorted("working")
     readonly property var snoozedThreads: sorted("snoozed")
     readonly property var settledThreads: sorted("settled")
     readonly property int attentionCount: {

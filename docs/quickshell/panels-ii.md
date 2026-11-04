@@ -338,8 +338,8 @@ Left drawer: a read-only **T3 Code navigator** ([t3-sidebar.md](t3-sidebar.md)).
   FloatingWindow, so state survives); Ctrl+P **pin** (sets `exclusiveZone` to sidebar width; uses a
   hyprctl cursor-move workaround).
 - Content (`SidebarLeftContent.qml`, data from the `T3` service): header with "new thread" (opens a
-  project picker, then `t3 app <root>`) and "open T3 Code"; thread sections Pinned / Active /
-  Snoozed, and Settled collapsed (first 30). Rows are `T3ThreadRow.qml` (status icon, title, project,
+  project picker, then `t3 app <root>`) and "open T3 Code"; thread sections Pinned / Waiting /
+  Working / Snoozed, and Settled collapsed (first 30), as in T3's own sidebar. Rows are `T3ThreadRow.qml` (status icon, title, project,
   relative time). Clicking a row opens it in the T3 window via `t3code://` and closes the drawer
   unless it is pinned or detached. When T3 is unreachable it shows a setup/offline state keyed on
   `T3.error` (copy-token-command, launch button).

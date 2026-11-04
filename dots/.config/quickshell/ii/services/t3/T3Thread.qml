@@ -14,6 +14,8 @@ QtObject {
     readonly property string branch: data.branch ?? ""
     readonly property real updatedAt: Date.parse(data.updatedAt ?? "") || 0
     readonly property string orderKey: (section === "pinned" ? data.pinOrderKey : data.activeOrderKey) ?? ""
+    // Running, so it goes on the Working shelf (T3's isThreadWorking: not waiting on the user).
+    readonly property bool isWorking: status === "working" || status === "waiting"
     readonly property bool needsAttention: ["approval", "input", "request"].includes(status)
     readonly property bool unseen: {
         const done = Date.parse(data.latestRunCompletedAt ?? "");

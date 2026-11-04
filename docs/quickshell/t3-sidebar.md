@@ -93,8 +93,12 @@ of QML and can be run by hand for debugging.
 `scopeRoot` property so `SidebarLeft.qml` (window, focus grab, extend, pin, detach) stays untouched.
 - Content:
   - Header with a "new thread" button.
-  - Sectioned thread list: Pinned / Active / Snoozed, then Settled collapsed (first 30). There is no
-    separate Working shelf; working rows show a spinning icon instead.
+  - Sectioned thread list, matching T3's sidebar with its Working shelf on: Pinned / Waiting / Working
+    / Snoozed, then Settled collapsed (first 30). Waiting and Working split the unpinned active
+    threads (T3's unlabeled main list and its Working shelf); a thread is Working when its status
+    is `working` or `waiting` (running but blocked on another thread), after `isThreadWorking` in
+    `t3code/packages/client-runtime/src/state/threadInbox.ts`. Threads needing approval or input
+    stay in Waiting.
   - "New thread" opens an inline project picker (most recently active first).
   - Rows show the title, project name, a status icon, and the relative time.
   - Offline or setup state: either "T3 isn't running, Launch", or "No token, run `<cmd>`".

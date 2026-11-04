@@ -17,7 +17,7 @@ Item {
     property bool pickingProject: false
     property bool showSettled: false
     readonly property int settledLimit: 30
-    readonly property bool hasOpenThreads: T3.pinnedThreads.length + T3.activeThreads.length + T3.snoozedThreads.length > 0
+    readonly property bool hasOpenThreads: T3.pinnedThreads.length + T3.activeThreads.length + T3.workingThreads.length + T3.snoozedThreads.length > 0
 
     // Projects, most recently active first, for the "new thread" picker.
     readonly property var recentProjects: {
@@ -221,8 +221,12 @@ Item {
                             threads: T3.pinnedThreads
                         }
                         ThreadSection {
-                            title: Translation.tr("Active")
+                            title: Translation.tr("Waiting")
                             threads: T3.activeThreads
+                        }
+                        ThreadSection {
+                            title: Translation.tr("Working")
+                            threads: T3.workingThreads
                         }
                         ThreadSection {
                             title: Translation.tr("Snoozed")
