@@ -19,14 +19,6 @@ Item {
     readonly property int settledLimit: 30
     readonly property bool hasOpenThreads: T3.pinnedThreads.length + T3.activeThreads.length + T3.workingThreads.length + T3.snoozedThreads.length > 0
 
-    // This machine's projects, most recently active first, for the "new thread" picker.
-    // Remote projects are left out: `t3 app <root>` opens a local path.
-    readonly property var recentProjects: {
-        const latest = {};
-        for (const t of T3.threads.filter(t => t.machine === "local"))
-            latest[t.projectId] = Math.max(latest[t.projectId] ?? 0, t.updatedAt);
-        return Object.values(T3.projects.local ?? {}).sort((a, b) => (latest[b.id] ?? 0) - (latest[a.id] ?? 0));
-    }
 
     function afterHandoff() {
         root.pickingProject = false;
@@ -162,7 +154,7 @@ Item {
                         }
                         Repeater {
                             model: ScriptModel {
-                                values: root.pickingProject ? root.recentProjects : []
+                                values: root.pickingProject ? T3.recentProjects : []
                             }
                             delegate: RippleButton {
                                 id: projectRow

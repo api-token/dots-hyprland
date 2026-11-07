@@ -23,7 +23,11 @@ Singleton {
     // Machine key ("local" or a remote's URL) -> { key, label, online, error, environmentId }
     property var machines: ({})
     property var projects: ({}) // machine -> { projectId -> { id, name, root } }
-    readonly property list<T3Thread> threads: []
+    // A plain array and index, mutated in place so no binding re-runs per thread. A snapshot holds
+    // hundreds of threads, and bindings over them re-ran on every change, freezing the shell for
+    // seconds. Read the lists that refresh() publishes instead.
+    property var threads: []
+    property var threadIndex: ({}) // "machine|threadId" -> T3Thread
 
     readonly property string tokenFile: Config.options.sidebar.t3.tokenFile || `${Directories.shellConfig}/t3-token`
     readonly property string cliPath: `${Quickshell.env("HOME")}/.t3/bin/t3`
@@ -49,31 +53,41 @@ Singleton {
         return `umask 077; ssh ${remote.host} '~/.t3/bin/t3 auth session issue --scope orchestration:read --label ii-sidebar-${root.machines.local?.label || "remote"} --token-only' > ${remote.tokenFile}`;
     }
 
-    // Bumped (debounced) on any change so the sorted lists below recompute.
-    property int revision: 0
     // Ticks for relative times.
     property real now: Date.now()
 
+    // Published by refresh(), debounced after any change.
+    property var pinnedThreads: []
+    property var activeThreads: [] // shown as "Waiting"
+    property var workingThreads: []
+    property var snoozedThreads: []
+    property var settledThreads: []
+    property int attentionCount: 0
+    // This machine's projects, most recently active first, for the "new thread" picker.
+    property var recentProjects: []
+
     // Sections match T3's sidebar: unpinned active threads split into Waiting (on you) and Working.
-    function sorted(section) {
-        root.revision; // dependency
-        const inSection = section === "working" ? t => t.section === "active" && t.isWorking
-            : section === "active" ? t => t.section === "active" && !t.isWorking
-            : t => t.section === section;
-        return root.threads.filter(inSection).sort((a, b) => {
+    function refresh() {
+        const by = { pinned: [], active: [], working: [], snoozed: [], settled: [] };
+        const latest = {};
+        let attention = 0;
+        for (const t of root.threads) {
+            by[t.section === "active" && t.isWorking ? "working" : t.section]?.push(t);
+            if (t.needsAttention && t.section !== "settled") attention++;
+            if (t.machine === "local") latest[t.projectId] = Math.max(latest[t.projectId] ?? 0, t.updatedAt);
+        }
+        const order = (a, b) => {
             if (a.orderKey && b.orderKey && a.orderKey !== b.orderKey)
                 return a.orderKey < b.orderKey ? -1 : 1;
             return b.updatedAt - a.updatedAt;
-        });
-    }
-    readonly property var pinnedThreads: sorted("pinned")
-    readonly property var activeThreads: sorted("active") // shown as "Waiting"
-    readonly property var workingThreads: sorted("working")
-    readonly property var snoozedThreads: sorted("snoozed")
-    readonly property var settledThreads: sorted("settled")
-    readonly property int attentionCount: {
-        root.revision;
-        return root.threads.filter(t => t.needsAttention && t.section !== "settled").length;
+        };
+        root.pinnedThreads = by.pinned.sort(order);
+        root.activeThreads = by.active.sort(order);
+        root.workingThreads = by.working.sort(order);
+        root.snoozedThreads = by.snoozed.sort(order);
+        root.settledThreads = by.settled.sort(order);
+        root.attentionCount = attention;
+        root.recentProjects = Object.values(root.projects.local ?? {}).sort((a, b) => (latest[b.id] ?? 0) - (latest[a.id] ?? 0));
     }
 
     function projectName(machine, projectId) {
@@ -103,15 +117,24 @@ Singleton {
 
     function upsert(machine, data) {
         data = Object.assign({ machine }, data);
-        const existing = root.threads.find(t => t.machine === machine && t.threadId === data.id);
-        if (existing) existing.data = data;
-        else root.threads.push(threadComp.createObject(root, { data }));
+        const key = `${machine}|${data.id}`;
+        const existing = root.threadIndex[key];
+        if (existing) {
+            existing.data = data;
+        } else {
+            const t = threadComp.createObject(root, { data });
+            root.threadIndex[key] = t;
+            root.threads.push(t);
+        }
     }
 
     function removeWhere(predicate) {
-        for (let i = root.threads.length - 1; i >= 0; i--) {
-            if (predicate(root.threads[i])) root.threads.splice(i, 1).forEach(t => t.destroy());
-        }
+        root.threads = root.threads.filter(t => {
+            if (!predicate(t)) return true;
+            delete root.threadIndex[`${t.machine}|${t.threadId}`];
+            t.destroy();
+            return false;
+        });
     }
 
     function handle(msg) {
@@ -138,10 +161,14 @@ Singleton {
             root.setProjects(machine, msg.projects);
             break;
         }
-        case "projects":
+        case "projects": {
             // Metadata refreshes can arrive in several chunks, each covering some projects.
-            root.setProjects(machine, Object.values(Object.assign({}, root.projects[machine], Object.fromEntries(msg.projects.map(p => [p.id, p])))));
+            // (No Object.fromEntries: QML's JS engine lacks it.)
+            const merged = Object.assign({}, root.projects[machine]);
+            for (const p of msg.projects) merged[p.id] = p;
+            root.setProjects(machine, Object.values(merged));
             break;
+        }
         case "project":
             root.setProjects(machine, Object.values(Object.assign({}, root.projects[machine], { [msg.project.id]: msg.project })));
             break;
@@ -153,7 +180,7 @@ Singleton {
             else root.setProjects(machine, Object.values(root.projects[machine] ?? {}).filter(p => p.id !== msg.id));
             break;
         }
-        revisionTimer.restart();
+        refreshTimer.restart();
     }
 
     function setProjects(machine, list) {
@@ -168,9 +195,9 @@ Singleton {
     }
 
     Timer {
-        id: revisionTimer
+        id: refreshTimer
         interval: 150
-        onTriggered: root.revision++
+        onTriggered: root.refresh()
     }
 
     Timer {
@@ -213,6 +240,7 @@ Singleton {
                 root.removeWhere(() => true);
                 root.machines = {};
                 root.projects = {};
+                refreshTimer.restart();
                 Qt.callLater(() => bridge.running = true);
                 return;
             }
