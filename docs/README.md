@@ -10,6 +10,7 @@ This checkout is a fork: `origin` = `api-token/dots-hyprland`, upstream = `end-4
 |---|---|---|
 | Installer | `setup`, `sdata/` | Bash dispatcher: per-distro deps, host setup, copies `dots/` into `$HOME`, maintenance subcommands |
 | Diagnostics | `diagnose` | Writes a support report (`diagnose.result`) |
+| Benchmark | `bench/` | `bench/run`: startup/memory/idle-CPU and QML micro-benchmarks of the shell, in a sandbox |
 | Hyprland config | `dots/.config/hypr/` | **Lua** config (Hyprland ≥ 0.55): `hyprland.lua` loads the `hyprland/*` defaults, then the `custom/*` user overrides, then `shellOverrides` |
 | Desktop shell | `dots/.config/quickshell/ii/` | Quickshell/QML shell (~74k lines, most of the project): bar, sidebars (the left one is a T3 Code navigator), overview, lock, settings app… Two "panel families": `ii` (Material You, default) and `waffle` (Windows 11-like) |
 | Other dotfiles | `dots/.config/*`, `dots/.local/` | matugen templates, kitty/foot, fish/zsh, starship, fuzzel, wlogout, Kvantum/KDE, fontconfig… |
@@ -32,6 +33,7 @@ This checkout is a fork: `origin` = `api-token/dots-hyprland`, upstream = `end-4
 | Windows 11-style panels: taskbar, start menu, action center… | [quickshell/panels-waffle.md](quickshell/panels-waffle.md) |
 | Settings app pages; exposing a config option in the UI | [quickshell/settings-app.md](quickshell/settings-app.md) |
 | Planned T3 Code sidebar replacing the left sidebar (decisions, design, phases) | [quickshell/t3-sidebar.md](quickshell/t3-sidebar.md) |
+| Measuring shell performance, comparing a change against a baseline, adding a benchmark | [benchmark.md](benchmark.md) |
 
 ## Runtime locations (not in the repo)
 
@@ -58,6 +60,7 @@ This checkout is a fork: `origin` = `api-token/dots-hyprland`, upstream = `end-4
 - **Formatting:** `qmlformat` settings live in `dots/.config/quickshell/ii/.qmlformat.ini` (4-space indent, 110 columns).
 - **User customizations:** they belong in `~/.config/hypr/custom/*.lua`, `~/.config/foot/custom/foot.ini` and `config.json`. Don't make users edit the defaults, because the installer overwrites them.
 - **Commit messages:** use a short area prefix such as `hypr: …`, `gentoo: …` or `qs: …`.
+- **Performance:** for shell changes that could affect speed or memory (services, bindings over big lists, panels), compare against the base with `bench/run --baseline main` and put the table in the PR. Unlike `./setup`, it is safe to run: it doesn't touch the running desktop or `~/.config` (see [benchmark.md](benchmark.md)).
 
 ## Known gotchas and suspected bugs (found while writing these docs)
 
