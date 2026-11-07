@@ -118,7 +118,7 @@ machines (T3 merges those in the client). So the bridge connects to each machine
 - **Config.** `sidebar.t3.remotes` in `~/.config/illogical-impulse/config.json`, a list of
   `{ "url": "http://ryan-arch:3773", "tokenFile": "" }`. An empty `tokenFile` means
   `~/.config/illogical-impulse/t3-token-<host>`. The URL must reach that machine's T3 server
-  directly, such as over Tailscale; its server must listen beyond loopback (for example `t3 up --lan`; the
+  directly, such as over Tailscale; its server must listen beyond loopback (desktop app: `"serverExposureMode": "network-accessible"` in its `~/.t3/userdata/desktop-settings.json`; headless: `t3 up --host 0.0.0.0`; the
   `host` in its `server-runtime.json` shows what it listens on). T3 Connect's relay is not supported.
 - **Token.** Issued on the remote, saved here:
   `umask 077; ssh <host> '~/.t3/bin/t3 auth session issue --scope orchestration:read --label ii-sidebar-<this-machine> --token-only' > ~/.config/illogical-impulse/t3-token-<host>`.
