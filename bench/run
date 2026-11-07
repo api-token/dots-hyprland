@@ -1,0 +1,560 @@
+#!/usr/bin/env python3
+"""Performance benchmark for the Quickshell shell (dots/.config/quickshell/ii).
+
+Runs a snapshot of the shell in a sandbox (nested Hyprland, private D-Bus session, private XDG
+config/state/cache dirs), so the running desktop and its config are not touched. See
+docs/benchmark.md.
+"""
+
+import argparse
+import datetime
+import json
+import os
+import platform
+import shutil
+import signal
+import socket
+import statistics
+import subprocess
+import sys
+import tempfile
+import threading
+import time
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parent.parent
+SHELL = "dots/.config/quickshell/ii"
+BENCH = REPO / "bench"
+RESULTS = BENCH / "results"
+CLK_TCK = os.sysconf("SC_CLK_TCK")
+MIN_CHANGE_PCT = 5
+MIN_SAMPLES = 3  # per side, for a faster/slower verdict
+RUNTIME = Path(os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}"))
+
+# Panels opened over IPC after startup: (name, ipc target, layer namespace).
+PANELS = [
+    ("overview", "search", "quickshell:overview"),
+    ("sidebarRight", "sidebarRight", "quickshell:sidebarRight"),
+    ("sidebarLeft", "sidebarLeft", "quickshell:sidebarLeft"),
+]
+
+# Metric name -> (unit, description). Lower is better for all of them.
+METRICS = {
+    "startup.loaded_ms": ("ms", "launch until Quickshell logs that the config loaded"),
+    "startup.bar_ms": ("ms", "launch until the bar's layer surface is mapped"),
+    "startup.cpu_ms": ("ms", "CPU time the shell used to start (until bar + settle)"),
+    "idle.cpu_pct": ("%", "shell CPU use while idle (100% = one core)"),
+    "idle.children_cpu_pct": ("%", "CPU use of the shell's child processes while idle"),
+    "memory.rss_mb": ("MB", "shell resident memory after the idle window"),
+    "memory.pss_mb": ("MB", "shell proportional set size after the idle window"),
+}
+METRICS["panel.ipc_overhead_ms"] = ("ms", "round trip of a `qs ipc` client, included in every open_ms")
+for _name, _target, _ns in PANELS:
+    METRICS[f"panel.{_name}.first_open_ms"] = ("ms", f"first IPC open of {_name} until its layer is mapped")
+    METRICS[f"panel.{_name}.open_ms"] = ("ms", f"later IPC opens of {_name} until its layer is mapped")
+    METRICS[f"panel.{_name}.first_open_cpu_ms"] = ("ms", f"shell CPU time spent on the first open of {_name}")
+
+
+def log(msg):
+    print(msg, file=sys.stderr, flush=True)
+
+
+def git(*args):
+    return subprocess.run(["git", "-C", str(REPO), *args], check=True, capture_output=True,
+                          text=True).stdout.strip()
+
+
+def describe(ref):
+    if ref is None:
+        dirty = bool(git("status", "--porcelain", "--", SHELL))
+        return {"ref": "working tree", "commit": git("rev-parse", "--short", "HEAD"), "dirty": dirty}
+    return {"ref": ref, "commit": git("rev-parse", "--short", f"{ref}^{{commit}}"), "dirty": False}
+
+
+def label(subject):
+    return f"{subject['ref']} ({subject['commit']}{'+dirty' if subject['dirty'] else ''})"
+
+
+# ---------------------------------------------------------------------------------------------
+# Shell snapshot and sandbox
+
+def snapshot_tree(ref, dest):
+    """Copies the shell at ref (None = working tree) to dest and adds the micro-benchmark harness."""
+    if ref is None:
+        shutil.copytree(REPO / SHELL, dest, symlinks=True, ignore=shutil.ignore_patterns(".git"))
+    else:
+        dest.mkdir(parents=True)
+        archive = subprocess.Popen(["git", "-C", str(REPO), "archive", ref, SHELL], stdout=subprocess.PIPE)
+        subprocess.run(["tar", "-x", "-C", str(dest), f"--strip-components={SHELL.count('/') + 1}"],
+                       stdin=archive.stdout, check=True)
+        if archive.wait() != 0:
+            raise SystemExit(f"git archive {ref} failed")
+    # git archive leaves submodules out; use the working tree's copy.
+    shapes = dest / "modules/common/widgets/shapes"
+    if not shapes.is_dir() or not any(shapes.iterdir()):
+        shutil.rmtree(shapes, ignore_errors=True)
+        shutil.copytree(REPO / SHELL / "modules/common/widgets/shapes", shapes, symlinks=True,
+                        ignore=shutil.ignore_patterns(".git"))
+    shutil.copy(BENCH / "qml/bench.qml", dest / "bench.qml")
+    shutil.copytree(BENCH / "qml/benchmarks", dest / "benchmarks")
+
+
+def make_sandbox(root, tree):
+    """Private XDG config/state/cache dirs. Returns the env vars that point the shell at them."""
+    state = root / "state/quickshell/user"
+    state.mkdir(parents=True)
+    (state / "first_run.txt").write_text("")  # skip the welcome app and default-wallpaper script
+    config = root / "config/illogical-impulse"
+    config.mkdir(parents=True)
+    (config / "config.json").write_text(json.dumps(
+        {"background": {"wallpaperPath": str(tree / "assets/images/default_wallpaper.png")}}))
+    (root / "cache").mkdir()
+    return {
+        "XDG_CONFIG_HOME": str(root / "config"),
+        "XDG_STATE_HOME": str(root / "state"),
+        "XDG_CACHE_HOME": str(root / "cache"),
+    }
+
+
+# ---------------------------------------------------------------------------------------------
+# Nested compositor
+
+class Nested:
+    """A nested Hyprland (a window on the current desktop) that hosts the shell under test."""
+
+    def __init__(self, workdir):
+        self.workdir = workdir
+        self.proc = None
+        self.sig = None
+        self.wl_socket = None
+
+    def __enter__(self):
+        if not os.environ.get("WAYLAND_DISPLAY"):
+            raise SystemExit("bench/run needs a running Wayland session (it starts a nested Hyprland)")
+        logf = open(self.workdir / "hyprland.log", "w")
+        self.proc = subprocess.Popen(["Hyprland", "-c", str(BENCH / "hypr.lua")], stdout=logf,
+                                     stderr=subprocess.STDOUT, start_new_session=True)
+        deadline = time.monotonic() + 20
+        while time.monotonic() < deadline:
+            if self.proc.poll() is not None:
+                raise SystemExit(f"nested Hyprland exited; see {self.workdir / 'hyprland.log'}")
+            try:
+                instances = json.loads(subprocess.run(["hyprctl", "instances", "-j"], capture_output=True,
+                                                      text=True).stdout or "[]")
+            except json.JSONDecodeError:
+                instances = []
+            mine = [i for i in instances if i.get("pid") == self.proc.pid]
+            if mine and (RUNTIME / "hypr" / mine[0]["instance"] / ".socket.sock").exists():
+                self.sig = mine[0]["instance"]
+                self.wl_socket = mine[0]["wl_socket"]
+                try:
+                    if self.monitors():
+                        return self
+                except OSError:
+                    pass
+            time.sleep(0.1)
+        raise SystemExit("nested Hyprland did not come up")
+
+    def __exit__(self, *exc):
+        kill_group(self.proc)
+
+    def request(self, cmd):
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
+            s.connect(str(RUNTIME / "hypr" / self.sig / ".socket.sock"))
+            s.sendall(cmd.encode())
+            chunks = []
+            while chunk := s.recv(65536):
+                chunks.append(chunk)
+        return b"".join(chunks).decode()
+
+    def monitors(self):
+        return json.loads(self.request("j/monitors"))
+
+    def layer_namespaces(self):
+        names = set()
+        for mon in json.loads(self.request("j/layers")).values():
+            for layers in mon["levels"].values():
+                names.update(layer["namespace"] for layer in layers)
+        return names
+
+
+def kill_group(proc, timeout=5):
+    if proc is None or proc.poll() is not None:
+        return
+    try:
+        os.killpg(proc.pid, signal.SIGTERM)
+        proc.wait(timeout)
+    except subprocess.TimeoutExpired:
+        os.killpg(proc.pid, signal.SIGKILL)
+        proc.wait()
+    except ProcessLookupError:
+        pass
+
+
+# ---------------------------------------------------------------------------------------------
+# /proc helpers
+
+def proc_cpu(pid):
+    """(self, reaped children) CPU seconds."""
+    fields = Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()
+    utime, stime, cutime, cstime = (int(x) for x in fields[11:15])
+    return (utime + stime) / CLK_TCK, (cutime + cstime) / CLK_TCK
+
+
+def thread_cpu(pid):
+    """CPU seconds of the live threads, from schedstat (ns resolution, unlike /proc/<pid>/stat's
+    10 ms ticks). Misses threads that already exited, so use it for short windows only."""
+    total = 0
+    for task in Path(f"/proc/{pid}/task").iterdir():
+        try:
+            total += int((task / "schedstat").read_text().split()[0])
+        except (FileNotFoundError, ProcessLookupError):
+            pass
+    return total / 1e9
+
+
+def descendants(pid):
+    out = []
+    todo = [pid]
+    while todo:
+        p = todo.pop()
+        try:
+            for task in Path(f"/proc/{p}/task").iterdir():
+                kids = [int(k) for k in (task / "children").read_text().split()]
+                out.extend(kids)
+                todo.extend(kids)
+        except (FileNotFoundError, ProcessLookupError):
+            pass
+    return out
+
+
+def children_cpu(pid):
+    """CPU seconds of live descendants plus reaped children."""
+    total = proc_cpu(pid)[1]
+    for kid in descendants(pid):
+        try:
+            total += proc_cpu(kid)[0]
+        except (FileNotFoundError, ProcessLookupError):
+            pass
+    return total
+
+
+def proc_memory_mb(pid):
+    rss = pss = 0
+    for line in Path(f"/proc/{pid}/smaps_rollup").read_text().splitlines():
+        if line.startswith("Rss:"):
+            rss = int(line.split()[1])
+        elif line.startswith("Pss:"):
+            pss = int(line.split()[1])
+    return rss / 1024, pss / 1024
+
+
+# ---------------------------------------------------------------------------------------------
+# Running qs
+
+class Qs:
+    """qs inside a private D-Bus session, with output captured and timestamped."""
+
+    def __init__(self, entry, nested, env, logpath):
+        self.lines = []
+        self.logpath = logpath
+        env = dict(os.environ, **env, WAYLAND_DISPLAY=nested.wl_socket,
+                   HYPRLAND_INSTANCE_SIGNATURE=nested.sig, QT_QPA_PLATFORM="wayland", NO_COLOR="1")
+        env.pop("DISPLAY", None)
+        self.t0 = time.monotonic()
+        self.proc = subprocess.Popen(["dbus-run-session", "--", "qs", "-p", str(entry)], env=env,
+                                     stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                                     start_new_session=True)
+        self.reader = threading.Thread(target=self._read, daemon=True)
+        self.reader.start()
+        self.pid = self._find_qs()
+
+    def _read(self):
+        with open(self.logpath, "w") as f:
+            for line in self.proc.stdout:
+                self.lines.append((time.monotonic(), line))
+                f.write(line)
+
+    def _find_qs(self):
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            for pid in descendants(self.proc.pid):
+                try:
+                    if Path(f"/proc/{pid}/comm").read_text().strip() in ("qs", "quickshell"):
+                        return pid
+                except FileNotFoundError:
+                    pass
+            if self.proc.poll() is not None:
+                break
+            time.sleep(0.01)
+        raise RuntimeError(f"qs did not start; see {self.logpath}")
+
+    def first_line(self, text):
+        return next((t for t, line in list(self.lines) if text in line), None)
+
+    def alive(self):
+        return self.proc.poll() is None
+
+    def ipc(self, target, function):
+        subprocess.run(["qs", "ipc", "--pid", str(self.pid), "call", target, function],
+                       capture_output=True, timeout=10)
+
+    def ipc_show(self):
+        subprocess.run(["qs", "ipc", "--pid", str(self.pid), "show"], capture_output=True, timeout=10)
+
+    def stop(self):
+        kill_group(self.proc)
+        self.reader.join(5)
+
+
+def wait_for(predicate, timeout, interval=0.005):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if predicate():
+            return time.monotonic()
+        time.sleep(interval)
+    return None
+
+
+def run_startup(tree, sandbox_env, nested, workdir, run_index, idle_s, settle_s):
+    """One full start of shell.qml. Returns {metric: value}."""
+    qs = Qs(tree / "shell.qml", nested, sandbox_env, workdir / f"startup-{run_index}.log")
+    try:
+        bar_t = wait_for(lambda: "quickshell:bar" in nested.layer_namespaces() or not qs.alive(), 60)
+        if bar_t is None or not qs.alive():
+            raise RuntimeError(f"bar never appeared; see {qs.logpath}")
+        m = {"startup.bar_ms": (bar_t - qs.t0) * 1000}
+        loaded_t = qs.first_line("Configuration Loaded")
+        if loaded_t is not None:
+            m["startup.loaded_ms"] = (loaded_t - qs.t0) * 1000
+
+        time.sleep(settle_s)
+        m["startup.cpu_ms"] = proc_cpu(qs.pid)[0] * 1000
+
+        c0, k0, t0 = thread_cpu(qs.pid), children_cpu(qs.pid), time.monotonic()
+        time.sleep(idle_s)
+        c1, k1, t1 = thread_cpu(qs.pid), children_cpu(qs.pid), time.monotonic()
+        m["idle.cpu_pct"] = (c1 - c0) / (t1 - t0) * 100
+        m["idle.children_cpu_pct"] = max(0.0, k1 - k0) / (t1 - t0) * 100
+        m["memory.rss_mb"], m["memory.pss_mb"] = proc_memory_mb(qs.pid)
+
+        # Every open goes through a `qs ipc` client; record what that costs on its own.
+        ipc_times = []
+        for _ in range(3):
+            start = time.monotonic()
+            qs.ipc_show()
+            ipc_times.append((time.monotonic() - start) * 1000)
+        m["panel.ipc_overhead_ms"] = statistics.median(ipc_times)
+
+        for name, target, ns in PANELS:
+            opens = []
+            for i in range(3):
+                cpu0, start = thread_cpu(qs.pid), time.monotonic()
+                qs.ipc(target, "open")
+                shown = wait_for(lambda: ns in nested.layer_namespaces(), 10)
+                if shown is None:
+                    break
+                opens.append((shown - start) * 1000)
+                time.sleep(0.5)  # let the opening animation and lazy content finish
+                if i == 0:
+                    m[f"panel.{name}.first_open_cpu_ms"] = (thread_cpu(qs.pid) - cpu0) * 1000
+                qs.ipc(target, "close")
+                wait_for(lambda: ns not in nested.layer_namespaces(), 10)
+                time.sleep(0.5)
+            if opens:
+                m[f"panel.{name}.first_open_ms"] = opens[0]
+                if len(opens) > 1:
+                    m[f"panel.{name}.open_ms"] = statistics.median(opens[1:])
+        return m
+    finally:
+        qs.stop()
+
+
+def run_micro(tree, sandbox_env, nested, workdir, filt, samples):
+    """Runs bench.qml once. Returns {name: result dict}."""
+    env = dict(sandbox_env, II_BENCH_FILTER=filt or "", II_BENCH_SAMPLES=str(samples))
+    qs = Qs(tree / "bench.qml", nested, env, workdir / "micro.log")
+    try:
+        if wait_for(lambda: qs.first_line('BENCH {"done":true}') is not None or not qs.alive(), 300,
+                    interval=0.1) is None:
+            raise RuntimeError(f"micro-benchmarks timed out; see {qs.logpath}")
+    finally:
+        qs.stop()
+    results = {}
+    for _, line in qs.lines:
+        if "BENCH {" not in line:
+            continue
+        r = json.loads(line[line.index("BENCH {") + 6:])
+        if "name" in r:
+            results[r.pop("name")] = r
+    if not results:
+        raise RuntimeError(f"micro-benchmarks printed no results; see {qs.logpath}")
+    return results
+
+
+# ---------------------------------------------------------------------------------------------
+# Results
+
+def summarize(values):
+    return {"median": statistics.median(values), "min": min(values), "max": max(values),
+            "samples": [round(v, 3) for v in values]}
+
+
+def host_info(nested):
+    mon = nested.monitors()[0]
+    cpu = next((line.split(":", 1)[1].strip() for line in Path("/proc/cpuinfo").read_text().splitlines()
+                if line.startswith("model name")), platform.processor())
+    version = lambda cmd: subprocess.run(cmd, capture_output=True, text=True).stdout.strip().splitlines()[0]
+    return {
+        "hostname": platform.node(),
+        "kernel": platform.release(),
+        "cpu": cpu,
+        "quickshell": version(["qs", "--version"]),
+        "hyprland": version(["Hyprland", "--version"]),
+        "nested_output": f"{mon['width']}x{mon['height']}@{mon['scale']}",
+        "loadavg_at_start": os.getloadavg()[0],
+    }
+
+
+def save(result, role):
+    RESULTS.mkdir(exist_ok=True)
+    s = result["subject"]
+    stamp = result["date"].replace(":", "").replace("-", "")[:15]
+    suffix = ("-dirty" if s["dirty"] else "") + ("-baseline" if role == "baseline" else "")
+    path = RESULTS / f"{stamp}-{s['commit']}{suffix}.json"
+    path.write_text(json.dumps(result, indent=2) + "\n")
+    return path
+
+
+def rows(result):
+    """(group, name, unit, median, min, max, sample count) for every metric in a result."""
+    out = []
+    for name, v in result.get("startup", {}).items():
+        out.append(("startup", name, METRICS.get(name, ("", ""))[0], v["median"], v["min"], v["max"],
+                    len(v["samples"])))
+    for name, v in result.get("micro", {}).items():
+        if "skipped" in v:
+            out.append(("micro", name, "skip", None, None, None, 0))
+        else:
+            out.append(("micro", name, "ms", v["median_ms"], v["min_ms"], v["max_ms"], v["samples"]))
+    return out
+
+
+def fmt(v):
+    if v is None:
+        return "-"
+    return f"{v:.3f}" if abs(v) < 1 else f"{v:.1f}" if abs(v) < 100 else f"{v:.0f}"
+
+
+def print_table(current, baseline=None):
+    print(f"\n{label(current['subject'])}" + (f"  vs  baseline {label(baseline['subject'])}" if baseline else ""))
+    base = {(g, n): (med, lo, hi, k) for g, n, _, med, lo, hi, k in rows(baseline)} if baseline else {}
+    header = f"{'metric':<38} {'unit':>4} {'median':>9} {'range':>17}"
+    if baseline:
+        header += f" {'baseline':>9} {'change':>8}  verdict"
+    print(header)
+    print("-" * len(header))
+    for group, name, unit, med, lo, hi, k in rows(current):
+        line = f"{name:<38} {unit:>4} {fmt(med):>9} {(fmt(lo) + '..' + fmt(hi)) if med is not None else '':>17}"
+        if baseline and (group, name) in base and med is not None and base[(group, name)][0] is not None:
+            bmed, blo, bhi, bk = base[(group, name)]
+            change = (med - bmed) / bmed * 100 if bmed else 0.0
+            # A change only counts when the ranges don't overlap and it's big enough to matter.
+            big = abs(change) >= MIN_CHANGE_PCT
+            verdict = "slower" if big and lo > bhi else "faster" if big and hi < blo else "~"
+            if min(k, bk) < MIN_SAMPLES:
+                verdict = f"? (<{MIN_SAMPLES} samples)"
+            line += f" {fmt(bmed):>9} {change:>+7.1f}%  {verdict}"
+        print(line)
+    for name, v in current.get("micro", {}).items():
+        if "skipped" in v:
+            print(f"  skipped {name}: {v['skipped'][:200]}")
+
+
+# ---------------------------------------------------------------------------------------------
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--ref", help="benchmark this git ref instead of the working tree")
+    ap.add_argument("--baseline", metavar="REF",
+                    help="also benchmark REF, interleaved with the subject, and compare")
+    ap.add_argument("--compare", metavar="FILE", help="compare against a saved result file")
+    ap.add_argument("--suite", default="startup,micro", help="comma-separated: startup, micro")
+    ap.add_argument("--runs", type=int, default=5, help="startup runs per tree (default 5)")
+    ap.add_argument("--idle", type=float, default=10, help="idle window in seconds (default 10)")
+    ap.add_argument("--settle", type=float, default=3, help="wait after the bar maps (default 3)")
+    ap.add_argument("--samples", type=int, default=10, help="samples per micro-benchmark (default 10)")
+    ap.add_argument("--filter", help="only micro-benchmarks whose name contains this")
+    ap.add_argument("--no-save", action="store_true", help="don't write bench/results/*.json")
+    ap.add_argument("--keep", action="store_true", help="keep the work dir (snapshots, sandboxes, logs)")
+    args = ap.parse_args()
+    suites = set(args.suite.split(","))
+    if suites - {"startup", "micro"}:
+        raise SystemExit(f"unknown suite: {', '.join(suites - {'startup', 'micro'})}")
+    for tool in ("Hyprland", "hyprctl", "qs", "dbus-run-session", "git", "tar"):
+        if not shutil.which(tool):
+            raise SystemExit(f"missing dependency: {tool}")
+
+    workdir = Path(tempfile.mkdtemp(prefix="ii-bench-"))
+    subjects = [("subject", args.ref)] + ([("baseline", args.baseline)] if args.baseline else [])
+    trees = {}
+    try:
+        for role, ref in subjects:
+            d = workdir / role
+            snapshot_tree(ref, d / "ii")
+            trees[role] = {"ref": ref, "tree": d / "ii", "env": make_sandbox(d / "sandbox", d / "ii"),
+                           "subject": describe(ref), "startup": {}, "micro": {}, "dir": d}
+
+        with Nested(workdir) as nested:
+            host = host_info(nested)
+            log(f"nested Hyprland {nested.sig} ({host['nested_output']}), work dir {workdir}")
+            if host["loadavg_at_start"] > os.cpu_count() / 4:
+                log(f"warning: load average is {host['loadavg_at_start']:.1f}; results will be noisy")
+
+            if "startup" in suites:
+                for t in trees.values():
+                    log(f"warm-up start of {label(t['subject'])} (fills the QML cache, not counted)")
+                    run_startup(t["tree"], t["env"], nested, t["dir"], 0, 1, 0.5)
+                samples = {role: {} for role in trees}
+                for i in range(1, args.runs + 1):
+                    for role, t in trees.items():  # interleaved, so drift hits both equally
+                        log(f"startup run {i}/{args.runs}: {label(t['subject'])}")
+                        for k, v in run_startup(t["tree"], t["env"], nested, t["dir"], i, args.idle,
+                                                args.settle).items():
+                            samples[role].setdefault(k, []).append(v)
+                order = list(METRICS)
+                for role, t in trees.items():
+                    names = sorted(samples[role], key=lambda k: order.index(k) if k in order else len(order))
+                    t["startup"] = {k: summarize(samples[role][k]) for k in names}
+
+            if "micro" in suites:
+                for t in trees.values():
+                    log(f"micro-benchmarks: {label(t['subject'])}")
+                    t["micro"] = run_micro(t["tree"], t["env"], nested, t["dir"], args.filter, args.samples)
+
+        date = datetime.datetime.now().astimezone().isoformat(timespec="seconds")
+        results = {}
+        for role, t in trees.items():
+            results[role] = {"version": 1, "date": date, "subject": t["subject"], "host": host,
+                             "settings": {"runs": args.runs, "idle_s": args.idle, "settle_s": args.settle,
+                                          "samples": args.samples},
+                             "startup": t["startup"], "micro": t["micro"]}
+            if not args.no_save:
+                log(f"saved {save(results[role], role).relative_to(REPO)}")
+
+        baseline = results.get("baseline")
+        if args.compare:
+            baseline = json.loads(Path(args.compare).read_text())
+        print_table(results["subject"], baseline)
+    except Exception:
+        args.keep = True  # the error points at logs in the work dir
+        raise
+    finally:
+        if args.keep:
+            log(f"kept {workdir}")
+        else:
+            shutil.rmtree(workdir, ignore_errors=True)
+
+
+if __name__ == "__main__":
+    main()
