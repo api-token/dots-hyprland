@@ -4,6 +4,13 @@ import QtQuick
 // delegates survive updates.
 QtObject {
     required property var data
+
+    // Timestamps are often null. Skip parsing those: Date.parse("") takes ~1 ms in QML's JS
+    // engine, which froze the shell for seconds on a snapshot.
+    function ms(iso) {
+        return iso ? Date.parse(iso) || 0 : 0;
+    }
+
     readonly property string threadId: data.id
     // "local", or the remote's URL from sidebar.t3.remotes
     readonly property string machine: data.machine ?? "local"
@@ -14,14 +21,14 @@ QtObject {
     // pinned | active | snoozed | settled
     readonly property string section: data.section ?? "active"
     readonly property string branch: data.branch ?? ""
-    readonly property real updatedAt: Date.parse(data.updatedAt ?? "") || 0
+    readonly property real updatedAt: ms(data.updatedAt)
     readonly property string orderKey: (section === "pinned" ? data.pinOrderKey : data.activeOrderKey) ?? ""
     // Running, so it goes on the Working shelf (T3's isThreadWorking: not waiting on the user).
     readonly property bool isWorking: status === "working" || status === "waiting"
     readonly property bool needsAttention: ["approval", "input", "request"].includes(status)
     readonly property bool unseen: {
-        const done = Date.parse(data.latestRunCompletedAt ?? "");
-        const seen = Date.parse(data.lastVisitedAt ?? "");
+        const done = ms(data.latestRunCompletedAt);
+        const seen = ms(data.lastVisitedAt);
         return status === "ready" && done > 0 && seen > 0 && done > seen;
     }
 }

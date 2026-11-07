@@ -136,8 +136,12 @@ machines (T3 merges those in the client). So the bridge connects to each machine
   path.
 
 **QML notes.** `T3.*Threads` are `var` arrays, not `list<T3Thread>`: `ScriptModel.values` rejects a
-`QQmlListReference`. Sorting re-runs on a debounced `revision` counter. The bridge process starts with
-the bar (the bar button reads `T3.attentionCount`).
+`QQmlListReference`. `T3.threads` is a plain array plus a `threadIndex` map, mutated in place. The
+section lists, `attentionCount` and `recentProjects` are assigned by `refresh()` on a 150 ms debounce,
+never computed in bindings. A binding over every thread re-ran for each thread in a snapshot, which is
+O(n²) and froze the whole shell (bar included) for seconds. Also, `Date.parse("")` costs ~1 ms in QML's
+JS engine, so `T3Thread.ms()` skips null timestamps, and `Object.fromEntries` doesn't exist there. The
+bridge process starts with the bar (the bar button reads `T3.attentionCount`).
 
 **Testing without reloading the live shell.** Make a temp dir that symlinks every entry of
 `dots/.config/quickshell/ii/` except `shell.qml`, add a `shell.qml` with a `FloatingWindow` holding
